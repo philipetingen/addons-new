@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Tree View -->
+        <record id="view_dm_port_tree" model="ir.ui.view">
+            <field name="name">dm.port.tree</field>
+            <field name="model">dm.port</field>
+            <field name="arch" type="xml">
+                <tree string="Ports">
+                    <field name="code"/>
+                    <field name="name"/>
+                    <field name="port_type"/>
+                    <field name="country_id"/>
+                    <field name="city"/>
+                    <field name="can_handle_reefer" optional="hide"/>
+                    <field name="can_handle_dangerous" optional="hide"/>
+                    <field name="has_customs" optional="hide"/>
+                    <field name="active" invisible="1"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Form View -->
+        <record id="view_dm_port_form" model="ir.ui.view">
+            <field name="name">dm.port.form</field>
+            <field name="model">dm.port</field>
+            <field name="arch" type="xml">
+                <form string="Port">
+                    <sheet>
+                        <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active == True"/>
+                        <div class="oe_title">
+                            <label for="name"/>
+                            <h1>
+                                <field name="name" placeholder="Port Name"/>
+                            </h1>
+                            <label for="code"/>
+                            <h2>
+                                <field name="code" placeholder="UN/LOCODE"/>
+                            </h2>
+                        </div>
+                        
+                        <group>
+                            <group string="General Information">
+                                <field name="port_type"/>
+                                <field name="country_id" options="{'no_create': True}"/>
+                                <field name="state_id" options="{'no_create': True}"/>
+                                <field name="city"/>
+                                <field name="timezone"/>
+                            </group>
+                            <group string="Coordinates">
+                                <field name="latitude"/>
+                                <field name="longitude"/>
+                                <field name="working_hours"/>
+                            </group>
+                        </group>
+                        
+                        <group>
+                            <group string="Capabilities">
+                                <field name="can_handle_reefer"/>
+                                <field name="can_handle_dangerous"/>
+                                <field name="has_customs"/>
+                            </group>
+                            <group string="Constraints">
+                                <field name="max_vessel_size"/>
+                                <field name="max_container_weight"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Contact Information">
+                            <group>
+                                <field name="contact_person"/>
+                                <field name="contact_phone"/>
+                            </group>
+                            <group>
+                                <field name="contact_email"/>
+                                <field name="active"/>
+                            </group>
+                        </group>
+                        
+                        <notebook>
+                            <page string="Notes">
+                                <field name="notes" placeholder="Additional information about this port..."/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <div class="oe_chatter">
+                        <field name="message_follower_ids"/>
+                        <field name="activity_ids"/>
+                        <field name="message_ids"/>
+                    </div>
+                </form>
+            </field>
+        </record>
+        
+        <!-- Search View -->
+        <record id="view_dm_port_search" model="ir.ui.view">
+            <field name="name">dm.port.search</field>
+            <field name="model">dm.port</field>
+            <field name="arch" type="xml">
+                <search string="Search Ports">
+                    <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                    <field name="country_id"/>
+                    <field name="port_type"/>
+                    <separator/>
+                    <filter string="Seaports" name="seaport" domain="[('port_type', '=', 'sea')]"/>
+                    <filter string="Airports" name="airport" domain="[('port_type', '=', 'air')]"/>
+                    <filter string="Dry Ports" name="dryport" domain="[('port_type', '=', 'dry')]"/>
+                    <separator/>
+                    <filter string="Reefer Capable" name="reefer" domain="[('can_handle_reefer', '=', True)]"/>
+                    <filter string="DG Capable" name="dangerous" domain="[('can_handle_dangerous', '=', True)]"/>
+                    <filter string="Has Customs" name="customs" domain="[('has_customs', '=', True)]"/>
+                    <separator/>
+                    <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="Type" name="group_type" domain="[]" context="{'group_by': 'port_type'}"/>
+                        <filter string="Country" name="group_country" domain="[]" context="{'group_by': 'country_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

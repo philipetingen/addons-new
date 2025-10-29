@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Inherit Product Template Form to add DM fields -->
+        <record id="view_product_template_form_dm_inherit" model="ir.ui.view">
+            <field name="name">product.template.form.dm.inherit</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_form_view"/>
+            <field name="arch" type="xml">
+                <xpath expr="//notebook" position="inside">
+                    <!-- Package Configuration Tab (Consolidated 3-Tier System) -->
+                    <page string="Package Configuration" name="dm_package_config">
+                        <group>
+                            <group string="Master Carton">
+                                <field name="master_carton_id" 
+                                       context="{'default_product_id': id}"
+                                       options="{'no_create': False, 'no_open': False}"/>
+                                <label for="cartons_per_pallet"/>
+                                <div>
+                                    <field name="cartons_per_pallet" class="oe_inline"/>
+                                    <span class="oe_inline text-muted ml8" invisible="dm_ti_hi == False"> (from TI/HI: <field name="dm_ti_hi" class="oe_inline" readonly="1"/>)</span>
+                                </div>
+                            </group>
+                            <group string="Pallet Configuration">
+                                <field name="palletized"/>
+                                <field name="preferred_loading_pattern" readonly="1"/>
+                                <field name="floor_loading_allowed" readonly="1" invisible="palletized == True"/>
+                                <field name="loading_priority"/>
+                                <field name="max_stacking_layers"/>
+                            </group>
+                        </group>
+                        
+                        <separator string="Container Configuration"/>
+                        <group>
+                            <group string="Container Capacity">
+                                <field name="pallets_per_container" invisible="palletized == False"/>
+                                <label for="cartons_per_container"/>
+                                <div>
+                                    <field name="cartons_per_container" class="oe_inline"/>
+                                    <span class="oe_inline text-muted ml8" invisible="palletized == False or cartons_per_pallet == 0 or pallets_per_container == 0">
+                                        (= <field name="cartons_per_pallet" readonly="1" class="oe_inline"/> × <field name="pallets_per_container" readonly="1" class="oe_inline"/>)
+                                    </span>
+                                    <span class="oe_inline text-muted ml8" invisible="palletized == True" style="color: #f39c12;"> (direct entry for floor-loaded)</span>
+                                </div>
+                            </group>
+                            <group string="Pallet Specifications" invisible="palletized == False">
+                                <field name="pallet_height_cm"/>
+                                <field name="master_carton_weight" invisible="1"/>
+                                <field name="master_carton_volume" invisible="1"/>
+                                <label for="pallet_net_weight_kg"/>
+                                <div>
+                                    <field name="pallet_net_weight_kg" class="oe_inline"/>
+                                    <span class="text-muted ml8" invisible="master_carton_id == False or master_carton_weight == 0">
+                                        (from carton: <field name="cartons_per_pallet" readonly="1" class="oe_inline"/> × <field name="master_carton_weight" readonly="1" class="oe_inline"/> kg)
+                                    </span>
+                                </div>
+                                <label for="pallet_cbm"/>
+                                <div>
+                                    <field name="pallet_cbm" class="oe_inline"/>
+                                    <span class="text-muted ml8" invisible="master_carton_id == False or master_carton_volume == 0">
+                                        (from carton: <field name="cartons_per_pallet" readonly="1" class="oe_inline"/> × <field name="master_carton_volume" readonly="1" class="oe_inline"/> m³)
+                                    </span>
+                                </div>
+                            </group>
+                        </group>
+                        
+                        <group>
+                            <group string="Container Weight &amp; Volume">
+                                <label for="container_net_weight_kg"/>
+                                <div>
+                                    <field name="container_net_weight_kg" class="oe_inline"/>
+                                    <span class="text-muted ml8" invisible="palletized == False or pallets_per_container == 0 or pallet_net_weight_kg == 0">
+                                        (= <field name="pallets_per_container" readonly="1" class="oe_inline"/> × <field name="pallet_net_weight_kg" readonly="1" class="oe_inline"/> kg)
+                                    </span>
+                                    <span class="text-muted ml8" invisible="palletized == True or cartons_per_container == 0 or master_carton_weight == 0">
+                                        (= <field name="cartons_per_container" readonly="1" class="oe_inline"/> × <field name="master_carton_weight" readonly="1" class="oe_inline"/> kg)
+                                    </span>
+                                </div>
+                                <label for="container_cbm"/>
+                                <div>
+                                    <field name="container_cbm" class="oe_inline"/>
+                                    <span class="text-muted ml8" invisible="palletized == False or pallets_per_container == 0 or pallet_cbm == 0">
+                                        (= <field name="pallets_per_container" readonly="1" class="oe_inline"/> × <field name="pallet_cbm" readonly="1" class="oe_inline"/> m³)
+                                    </span>
+                                    <span class="text-muted ml8" invisible="palletized == True or cartons_per_container == 0 or master_carton_volume == 0">
+                                        (= <field name="cartons_per_container" readonly="1" class="oe_inline"/> × <field name="master_carton_volume" readonly="1" class="oe_inline"/> m³)
+                                    </span>
+                                </div>
+                            </group>
+                            <group string="Container Preferences">
+                                <field name="container_length_preference"/>
+                                <field name="high_cube_capable"/>
+                                <field name="requires_reefer_container"/>
+                            </group>
+                        </group>
+                        
+                        <group>
+                            <group string="Container Type Determination">
+                                <field name="default_container_type_id" readonly="1">
+                                    <tree>
+                                        <field name="display_name"/>
+                                        <field name="internal_volume"/>
+                                        <field name="max_payload"/>
+                                    </tree>
+                                </field>
+                                <field name="container_type_override_id" 
+                                       domain="[('active', '=', True)]"
+                                       options="{'no_create': True}"/>
+                                <field name="effective_container_type_id" 
+                                       readonly="1" 
+                                       style="font-weight: bold;">
+                                    <tree>
+                                        <field name="display_name"/>
+                                    </tree>
+                                </field>
+                                <field name="container_type_fallback" 
+                                       readonly="1"
+                                       invisible="effective_container_type_id != False"
+                                       style="color: #f39c12; font-style: italic;"/>
+                            </group>
+                            <group string="Temperature &amp; Humidity Settings" invisible="requires_reefer_container == False">
+                                <label for="set_temperature_min" string="Set Temperature (°C)"/>
+                                <div class="o_row">
+                                    <field name="set_temperature_min" style="width: 80px"/> - 
+                                    <field name="set_temperature_max" style="width: 80px"/>
+                                </div>
+                                <field name="set_temperature_optimal"/>
+                                <label for="set_humidity_min" string="Set Humidity (%)"/>
+                                <div class="o_row">
+                                    <field name="set_humidity_min" style="width: 80px"/> - 
+                                    <field name="set_humidity_max" style="width: 80px"/>
+                                </div>
+                            </group>
+                        </group>
+                    </page>
+                    <!-- DonnaMello Tab -->
+                    <page string="DonnaMello" name="dm_config">
+                        <group>
+                            <group string="Shelf Life">
+                                <field name="production_to_expiry_days"/>
+                                <field name="shelf_life_days"/>
+                                <field name="min_remaining_shelf_life" widget="percentage"/>
+                            </group>
+                            <group string="Production Planning">
+                                <field name="production_lead_time_days"/>
+                                <field name="planning_buffer_days"/>
+                                <field name="total_production_cycle" readonly="1"/>
+                            </group>
+                        </group>
+                        
+                        <!-- DM Product Attributes -->
+                        <separator string="Product Attributes"/>
+                        <group>
+                            <group string="Classifications">
+                                <field name="dm_collection_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                <field name="dm_package_type_id" options="{'no_create': True}"/>
+                                <field name="dm_individual_packing_type_id" options="{'no_create': True}"/>
+                                <field name="dm_compliant_for_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            </group>
+                            <group string="Physical Characteristics">
+                                <field name="dm_texture_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                <field name="dm_shape_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                <field name="dm_inner_color_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                <field name="dm_coating_color_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Composition">
+                                <field name="dm_stabilizer_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                                <field name="dm_taste_flavor_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            </group>
+                            <group string="Product Details">
+                                <field name="dm_consumer_unit_net_weight"/>
+                                <field name="dm_consumable_units_per_pack"/>
+                                <field name="dm_ti_hi"/>
+                                <field name="dm_branding_design"/>
+                                <field name="dm_coloring"/>
+                                <field name="dm_flavoring"/>
+                            </group>
+                        </group>
+                        
+                        <!-- Compatibility & Compliance -->
+                        <separator string="Compatibility &amp; Compliance"/>
+                        <group>
+                            <group string="Quality Control">
+                                <field name="qc_required"/>
+                                <field name="required_qc_type_ids" widget="many2many_tags" options="{'no_create': True}" invisible="qc_required == False"/>
+                                <field name="required_document_type_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            </group>
+                        </group>
+                        
+                        <!-- Incompatible Products -->
+                        <separator string="Incompatible Products"/>
+                        <field name="incompatible_product_ids">
+                            <tree>
+                                <field name="display_name"/>
+                                <field name="default_code"/>
+                            </tree>
+                        </field>
+                    </page>
+                </xpath>
+            </field>
+        </record>
+        
+        <!-- Tree View Extension -->
+        <record id="view_product_template_tree_dm_inherit" model="ir.ui.view">
+            <field name="name">product.template.tree.dm.inherit</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_tree_view"/>
+            <field name="arch" type="xml">
+                <field name="uom_id" position="after">
+                    <!-- Show container type or fallback -->
+                    <field name="effective_container_type_id" string="Container" optional="show" invisible="effective_container_type_id == False"/>
+                    <field name="container_type_fallback" string="Container" optional="show" invisible="effective_container_type_id != False"
+                           decoration-warning="1"/>
+                    <field name="preferred_loading_pattern" string="Loading" optional="hide"/>
+                    <field name="requires_reefer_container" string="Reefer" widget="boolean_toggle" optional="hide"/>
+                    <field name="dm_collection_ids" string="Collections" widget="many2many_tags" optional="hide"/>
+                </field>
+            </field>
+        </record>
+        
+        <!-- Search View Extension -->
+        <record id="view_product_template_search_dm_inherit" model="ir.ui.view">
+            <field name="name">product.template.search.dm.inherit</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_search_view"/>
+            <field name="arch" type="xml">
+                <filter name="filter_to_sell" position="after">
+                    <separator/>
+                    <filter name="requires_reefer" string="Requires Reefer" domain="[('requires_reefer_container', '=', True)]"/>
+                    <filter name="palletized" string="Palletized" domain="[('palletized', '=', True)]"/>
+                    <filter name="floor_loading" string="Floor Loading" domain="[('floor_loading_allowed', '=', True)]"/>
+                    <separator/>
+                    <filter name="has_container_override" string="Container Override" 
+                            domain="[('container_type_override_id', '!=', False)]"/>
+                    <filter name="missing_container" string="Missing Container Type" 
+                            domain="[('effective_container_type_id', '=', False)]"/>
+                </filter>
+                
+                <group position="inside">
+                    <filter name="group_by_container" string="Container Type" context="{'group_by': 'effective_container_type_id'}"/>
+                    <filter name="group_by_loading" string="Loading Pattern" context="{'group_by': 'preferred_loading_pattern'}"/>
+                    <filter name="group_by_collection" string="Collection" context="{'group_by': 'dm_collection_ids'}"/>
+                    <filter name="group_by_package_type" string="Package Type" context="{'group_by': 'dm_package_type_id'}"/>
+                    <filter name="group_by_compliance" string="Compliance Region" context="{'group_by': 'dm_compliant_for_ids'}"/>
+                </group>
+            </field>
+        </record>
+
+    <!-- Add Production Planning fields to Product Template Form -->
+    <record id="product_template_form_view_dm_production_planning" model="ir.ui.view">
+        <field name="name">product.template.form.dm.production.planning</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add Production Planning page in notebook -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Production Planning" name="production_planning">
+                    <group>
+                        <group string="Production Lead Times">
+                            <field name="production_lead_time_days"/>
+                            <field name="planning_buffer_days"/>
+                            <field name="total_production_cycle" readonly="1"/>
+                        </group>
+                        <group string="Calculation Info">
+                            <div class="alert alert-info" role="alert">
+                                <p><strong>How it works:</strong></p>
+                                <ul>
+                                    <li><strong>Production Lead Time:</strong> Days from production start to RTS</li>
+                                    <li><strong>Planning Buffer:</strong> Safety days added before production start</li>
+                                    <li><strong>Total Cycle:</strong> Used to calculate PO expected date from RTS</li>
+                                </ul>
+                                <p class="mb-0">
+                                    <strong>Example:</strong> RTS = Feb 20, Lead Time = 14d, Buffer = 7d
+                                    <br/>→ Production Start = Feb 20 - 14 - 7 = <strong>Jan 30</strong>
+                                </p>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <group string="Production Planning Notes">
+                        <field name="production_to_expiry_days" 
+                               string="Production to Expiry (Days)"
+                               help="Days from production date to expiry (for lot tracking)"/>
+                    </group>
+                </page>
+            </xpath>
+            
+        </field>
+    </record>
+    
+    <!-- Add Production Planning fields to Product Template Form -->
+    <record id="product_template_form_view_dm_production_planning" model="ir.ui.view">
+        <field name="name">product.template.form.dm.production.planning</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add Production Planning page in notebook -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Production Planning" name="production_planning">
+                    <group>
+                        <group string="Production Lead Times">
+                            <field name="production_lead_time_days"/>
+                            <field name="planning_buffer_days"/>
+                            <field name="total_production_cycle" readonly="1"/>
+                        </group>
+                        <group string="Calculation Info">
+                            <div class="alert alert-info" role="alert">
+                                <p><strong>How it works:</strong></p>
+                                <ul>
+                                    <li><strong>Production Lead Time:</strong> Days from production start to RTS</li>
+                                    <li><strong>Planning Buffer:</strong> Safety days added before production start</li>
+                                    <li><strong>Total Cycle:</strong> Used to calculate PO expected date from RTS</li>
+                                </ul>
+                                <p class="mb-0">
+                                    <strong>Example:</strong> RTS = Feb 20, Lead Time = 14d, Buffer = 7d
+                                    <br/>→ Production Start = Feb 20 - 14 - 7 = <strong>Jan 30</strong>
+                                </p>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <group string="Production Planning Notes">
+                        <field name="production_to_expiry_days" 
+                               string="Production to Expiry (Days)"
+                               help="Days from production date to expiry (for lot tracking)"/>
+                    </group>
+                </page>
+            </xpath>
+            
+        </field>
+    </record>
+    
+    <!-- Add Production Cycle to Product Template Tree View (CORRECTED) -->
+    <record id="product_template_tree_view_dm_production" model="ir.ui.view">
+        <field name="name">product.template.tree.dm.production</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="arch" type="xml">
+            <!-- Add the field first -->
+            <xpath expr="//field[@name='list_price']" position="after">
+                <field name="total_production_cycle" optional="show" 
+                       string="Prod. Cycle (days)"/>
+            </xpath>
+            <!-- Then add decoration that uses the field -->
+            <xpath expr="//tree" position="attributes">
+                <attribute name="decoration-warning">total_production_cycle &gt; 30</attribute>
+            </xpath>
+        </field>
+    </record>
+    
+    <!-- Add to Product Variant form as well -->
+    <record id="product_product_form_view_dm_production_planning" model="ir.ui.view">
+        <field name="name">product.product.form.dm.production.planning</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='group_general']" position="after">
+                <group string="Production Planning" name="production_planning">
+                    <field name="production_lead_time_days"/>
+                    <field name="planning_buffer_days"/>
+                    <field name="total_production_cycle"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+            
+    </data>
+</odoo>

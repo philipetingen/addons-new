@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- ============================================ -->
+        <!-- ACTIONS FOR dm_master_data MODELS -->
+        <!-- ============================================ -->
+        
+        <record id="action_dm_port" model="ir.actions.act_window">
+            <field name="name">Ports</field>
+            <field name="res_model">dm.port</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Create your first port
+                </p>
+                <p>
+                    Define ports for shipment routing including seaports, airports, and inland terminals.
+                </p>
+            </field>
+        </record>
+        
+        <record id="action_dm_container_type" model="ir.actions.act_window">
+            <field name="name">Container Types</field>
+            <field name="res_model">dm.container.type</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Define container types
+                </p>
+                <p>
+                    Configure container specifications for shipment planning and optimization.
+                </p>
+            </field>
+        </record>
+       
+        <record id="action_dm_document_type" model="ir.actions.act_window">
+            <field name="name">Document Types</field>
+            <field name="res_model">dm.document.type</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Define document types
+                </p>
+                <p>
+                    Configure document requirements for compliance tracking.
+                </p>
+            </field>
+        </record>
+        
+        <record id="action_dm_qc_type" model="ir.actions.act_window">
+            <field name="name">QC Check Types</field>
+            <field name="res_model">dm.qc_type</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Define QC checks
+                </p>
+                <p>
+                    Configure quality control checklists for production.
+                </p>
+            </field>
+        </record>
+        
+        <record id="action_dm_product_compatibility" model="ir.actions.act_window">
+            <field name="name">Product Compatibility</field>
+            <field name="res_model">dm.product.compatibility</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    Define compatibility rules
+                </p>
+                <p>
+                    Configure which products can or cannot be shipped together.
+                </p>
+            </field>
+        </record>
+        
+        <!-- ============================================ -->
+        <!-- COMPLETE MENU STRUCTURE -->
+        <!-- ============================================ -->
+        
+        <!-- Main Menu -->
+        <menuitem id="menu_dm_root"
+                  name="DonnaMello"
+                  sequence="1"
+                  web_icon="dm_master_data,static/description/icon.png"/>
+        
+        <!-- Configuration Menu -->
+        <menuitem id="menu_dm_configuration"
+                  name="Configuration"
+                  parent="menu_dm_root"
+                  sequence="100"
+                  groups="dm_base.group_dm_manager"/>
+ 
+		 <!-- Milestones -->
+			<menuitem id="menu_milestone_type"
+					  name="Milestone Types"
+					  parent="menu_dm_configuration"
+					  action="action_dm_milestone_type"
+					  sequence="60"/>
+  				  
+        
+        <!-- ============================================ -->
+        <!-- PACKAGING SUBMENU (from dm_packaging module) -->
+        <!-- ============================================ -->
+        
+        <menuitem id="menu_dm_packaging_root"
+                  name="Packaging"
+                  parent="menu_dm_configuration"
+                  sequence="12"/>
+        
+        <menuitem id="menu_packaging_standard_type"
+                  name="Standard Types"
+                  parent="menu_dm_packaging_root"
+                  action="dm_packaging.action_packaging_standard_type"
+                  sequence="10"/>
+        
+        <menuitem id="menu_product_packaging"
+                  name="Product Packaging"
+                  parent="menu_dm_packaging_root"
+                  action="dm_packaging.action_product_packaging"
+                  sequence="20"/>
+        
+        <!-- ============================================ -->
+        <!-- MASTER DATA SUBMENU -->
+        <!-- ============================================ -->
+        
+        <menuitem id="menu_dm_master_data"
+                  name="Master Data"
+                  parent="menu_dm_configuration"
+                  sequence="10"/>
+        
+        <menuitem id="menu_dm_product_compatibility"
+                  name="Product Compatibility"
+                  parent="menu_dm_master_data"
+                  action="action_dm_product_compatibility"
+                  sequence="20"/>
+        
+        <!-- ============================================ -->
+        <!-- PRODUCT CONFIGURATION SUBMENU -->
+        <!-- ============================================ -->
+        
+        <menuitem id="menu_dm_product_config"
+                  name="Product Configuration"
+                  parent="menu_dm_configuration"
+                  sequence="15"/>
+        
+        <menuitem id="menu_dm_collections"
+                  name="Collections"
+                  parent="menu_dm_product_config"
+                  action="dm_collection_action"
+                  sequence="10"/>
+        
+        <menuitem id="menu_dm_package_types"
+                  name="Package Types"
+                  parent="menu_dm_product_config"
+                  action="dm_package_type_action"
+                  sequence="20"/>
+        
+        <menuitem id="menu_dm_individual_packing"
+                  name="Individual Packing"
+                  parent="menu_dm_product_config"
+                  action="dm_individual_packing_type_action"
+                  sequence="30"/>
+        
+        <menuitem id="menu_dm_textures"
+                  name="Textures"
+                  parent="menu_dm_product_config"
+                  action="dm_texture_action"
+                  sequence="40"/>
+        
+        <menuitem id="menu_dm_stabilizers"
+                  name="Stabilizers"
+                  parent="menu_dm_product_config"
+                  action="dm_stabilizer_action"
+                  sequence="50"/>
+        
+        <menuitem id="menu_dm_tastes"
+                  name="Taste/Flavors"
+                  parent="menu_dm_product_config"
+                  action="dm_taste_flavor_action"
+                  sequence="60"/>
+        
+        <menuitem id="menu_dm_shapes"
+                  name="Shapes"
+                  parent="menu_dm_product_config"
+                  action="dm_shape_action"
+                  sequence="70"/>
+        
+        <menuitem id="menu_dm_colors"
+                  name="Colors"
+                  parent="menu_dm_product_config"
+                  action="dm_color_action"
+                  sequence="80"/>
+        
+        <menuitem id="menu_dm_compliance"
+                  name="Compliance Regions"
+                  parent="menu_dm_product_config"
+                  action="dm_compliance_region_action"
+                  sequence="90"/>
+        
+
+        <!-- ============================================ -->
+        <!-- LOGISTICS SUBMENU -->
+        <!-- ============================================ -->
+        
+        <menuitem id="menu_dm_logistics_config"
+                  name="Logistics"
+                  parent="menu_dm_configuration"
+                  sequence="20"/>
+        
+        <menuitem id="menu_dm_ports"
+                  name="Ports"
+                  parent="menu_dm_logistics_config"
+                  action="action_dm_port"
+                  sequence="10"/>
+        
+        <menuitem id="menu_dm_container_types"
+                  name="Container Types"
+                  parent="menu_dm_logistics_config"
+                  action="action_dm_container_type"
+                  sequence="20"/>
+        
+        <!-- ============================================ -->
+        <!-- DOCUMENTS & QC SUBMENU -->
+        <!-- ============================================ -->
+        
+        <menuitem id="menu_dm_document_config"
+                  name="Documents &amp; QC"
+                  parent="menu_dm_configuration"
+                  sequence="30"/>
+        
+        <menuitem id="menu_dm_document_types"
+                  name="Document Types"
+                  parent="menu_dm_document_config"
+                  action="action_dm_document_type"
+                  sequence="10"/>
+        
+        <menuitem id="menu_dm_qc_types"
+                  name="QC Check Types"
+                  parent="menu_dm_document_config"
+                  action="action_dm_qc_type"
+                  sequence="20"/>
+        
+    </data>
+</odoo>

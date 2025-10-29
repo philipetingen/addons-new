@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Tree View -->
+        <record id="view_dm_container_type_tree" model="ir.ui.view">
+            <field name="name">dm.container.type.tree</field>
+            <field name="model">dm.container.type</field>
+            <field name="arch" type="xml">
+                <tree string="Container Types">
+                    <field name="size_code"/>
+                    <field name="type_code"/>
+                    <field name="name"/>
+                    <field name="iso_code" optional="show"/>
+                    <field name="internal_volume"/>
+                    <field name="max_payload"/>
+                    <field name="teu_factor" optional="hide"/>
+                    <field name="is_reefer"/>
+                    <field name="product_count" string="Products"/>
+                    <field name="active" widget="boolean_toggle" optional="show"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Form View -->
+        <record id="view_dm_container_type_form" model="ir.ui.view">
+            <field name="name">dm.container.type.form</field>
+            <field name="model">dm.container.type</field>
+            <field name="arch" type="xml">
+                <form string="Container Type">
+                    <sheet>
+                        <field name="product_count" invisible="1"/>
+                        <field name="is_reefer" invisible="1"/>
+                        
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_products" type="object" class="oe_stat_button" 
+                                    icon="fa-cubes" invisible="product_count == 0">
+                                <field name="product_count" widget="statinfo" string="Products"/>
+                            </button>
+                        </div>
+                        
+                        <div class="oe_title">
+                            <h1>
+                                <field name="display_name" readonly="1"/>
+                            </h1>
+                        </div>
+                        
+                        <group>
+                            <group string="Basic Information">
+                                <field name="name"/>
+                                <field name="size_code"/>
+                                <field name="type_code"/>
+                                <field name="iso_code"/>
+                                <field name="teu_factor"/>
+                            </group>
+                            <group string="Special Features">
+                                <field name="is_reefer"/>
+                                <field name="min_temperature" invisible="is_reefer == False"/>
+                                <field name="max_temperature" invisible="is_reefer == False"/>
+                                <field name="has_ventilation"/>
+                                <field name="max_stacking"/>
+                            </group>
+                        </group>
+                        
+                        <separator string="Dimensions"/>
+                        <group>
+                            <group string="External Dimensions (m)">
+                                <field name="external_length"/>
+                                <field name="external_width"/>
+                                <field name="external_height"/>
+                            </group>
+                            <group string="Internal Dimensions (m)">
+                                <field name="internal_length"/>
+                                <field name="internal_width"/>
+                                <field name="internal_height"/>
+                                <field name="internal_volume"/>
+                            </group>
+                        </group>
+                        
+                        <group>
+                            <group string="Door Opening (m)">
+                                <field name="door_width"/>
+                                <field name="door_height"/>
+                            </group>
+                            <group string="Weight Specifications (kg)">
+                                <field name="tare_weight"/>
+                                <field name="max_gross_weight"/>
+                                <field name="max_payload"/>
+                            </group>
+                        </group>
+                        
+                        <group string="Cost Factors">
+                            <field name="base_freight_rate"/>
+                            <field name="reefer_surcharge" invisible="is_reefer == False"/>
+                            <field name="active"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+        
+        <!-- Search View -->
+        <record id="view_dm_container_type_search" model="ir.ui.view">
+            <field name="name">dm.container.type.search</field>
+            <field name="model">dm.container.type</field>
+            <field name="arch" type="xml">
+                <search string="Container Types">
+                    <field name="name"/>
+                    <field name="size_code"/>
+                    <field name="type_code"/>
+                    <field name="iso_code"/>
+                    <separator/>
+                    <filter string="Reefer" name="reefer" domain="[('is_reefer', '=', True)]"/>
+                    <filter string="High Cube" name="high_cube" domain="[('type_code', '=', 'HC')]"/>
+                    <filter string="Standard" name="standard" domain="[('type_code', '=', 'GP')]"/>
+                    <separator/>
+                    <filter string="In Use" name="in_use" domain="[('product_count', '&gt;', 0)]"/>
+                    <separator/>
+                    <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                    <group expand="0" string="Group By">
+                        <filter string="Size" name="group_size" domain="[]" context="{'group_by': 'size_code'}"/>
+                        <filter string="Type" name="group_type" domain="[]" context="{'group_by': 'type_code'}"/>
+                        <filter string="Reefer" name="group_reefer" domain="[]" context="{'group_by': 'is_reefer'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_packaging_standard_type_user,packaging.standard.type.user,model_packaging_standard_type,dm_base.group_dm_user,1,0,0,0
+access_packaging_standard_type_manager,packaging.standard.type.manager,model_packaging_standard_type,dm_base.group_dm_manager,1,1,1,1
+access_product_packaging_user,product.packaging.user,product.model_product_packaging,dm_base.group_dm_user,1,1,1,0
+access_product_packaging_manager,product.packaging.manager,product.model_product_packaging,dm_base.group_dm_manager,1,1,1,1

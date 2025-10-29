@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- ================================================================== -->
+        <!-- PARTNER (VENDOR) VIEW EXTENSION                                    -->
+        <!-- ================================================================== -->
+        
+        <!-- Add Production Capacity tab to vendor form -->
+        <record id="view_partner_form_capacity" model="ir.ui.view">
+            <field name="name">res.partner.form.capacity</field>
+            <field name="model">res.partner</field>
+            <field name="inherit_id" ref="base.view_partner_form"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add smart button -->
+                <div name="button_box" position="inside">
+                    <button name="action_view_capacity_records"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-industry"
+                            invisible="supplier_rank == 0">
+                        <div class="o_field_widget o_stat_info">
+                            <span class="o_stat_value">
+                                <field name="current_capacity_teu" widget="float" digits="[16, 1]"/>
+                            </span>
+                            <span class="o_stat_text">TEU/Month</span>
+                        </div>
+                    </button>
+                </div>
+                
+                <!-- Add capacity tab -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="Production Capacity" 
+                          name="production_capacity"
+                          invisible="supplier_rank == 0">
+                        
+						<field name="supplier_rank" invisible="1"/>
+                        
+						<field name="has_capacity_configured" invisible="1"/>
+                        <field name="capacity_count" invisible="1"/>
+                        
+                        <div class="alert alert-info" 
+                             invisible="has_capacity_configured"
+                             style="margin-bottom: 10px;">
+                            <strong>No Capacity Configured</strong>
+                            <p>
+                                Define this vendor's production capacity to enable capacity planning.<br/>
+                                Click "Create" below to add a capacity record.
+                            </p>
+                        </div>
+                        
+                        <group invisible="has_capacity_configured == False">
+                            <group string="Current Capacity">
+                                <field name="current_capacity_id" readonly="1"/>
+                                <field name="current_capacity_teu" readonly="1"/>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <field name="vendor_capacity_ids" mode="tree">
+                            <tree decoration-success="status_badge == 'current'"
+                                  decoration-info="status_badge == 'future'"
+                                  decoration-muted="status_badge == 'expired'">
+                                
+                                <field name="status_badge" invisible="1"/>
+                                
+                                <field name="valid_from"/>
+                                <field name="valid_to"/>
+                                <field name="display_period"/>
+                                <field name="effective_capacity_teu" string="Capacity (TEU/Month)"/>
+                                <field name="constraint_count" string="Constraints"/>
+                                <field name="status_badge" 
+                                       widget="badge"
+                                       decoration-success="status_badge == 'current'"
+                                       decoration-info="status_badge == 'future'"
+                                       decoration-muted="status_badge == 'expired'"/>
+                            </tree>
+                        </field>
+                        
+                        <div class="oe_grey" style="margin-top: 10px;">
+                            <p><strong>About Production Capacity:</strong></p>
+                            <ul>
+                                <li><strong>Time-Based:</strong> Create multiple records to track capacity changes over time (e.g., before and after new lines are installed)</li>
+                                <li><strong>Container or TEU:</strong> Enter capacity as containers per month (user-friendly) or directly in TEU (technical)</li>
+                                <li><strong>Constraints:</strong> Optionally define product-specific limitations (e.g., certain lines can only make certain products)</li>
+                            </ul>
+                        </div>
+                        
+                    </page>
+                </xpath>
+                
+            </field>
+        </record>
+        
+    </data>
+</odoo>

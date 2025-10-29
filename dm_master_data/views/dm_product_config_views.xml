@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================================ -->
+    <!-- COLLECTIONS -->
+    <!-- ============================================================================ -->
+    <record id="dm_collection_tree_view" model="ir.ui.view">
+        <field name="name">dm.collection.tree</field>
+        <field name="model">dm.collection</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_collection_form_view" model="ir.ui.view">
+        <field name="name">dm.collection.form</field>
+        <field name="model">dm.collection</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_collection_action" model="ir.actions.act_window">
+        <field name="name">Collections</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.collection</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new collection
+            </p>
+            <p>
+                Collections help categorize products by season, theme, or marketing campaign.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- PACKAGE TYPES -->
+    <!-- ============================================================================ -->
+    <record id="dm_package_type_tree_view" model="ir.ui.view">
+        <field name="name">dm.package.type.tree</field>
+        <field name="model">dm.package.type</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_package_type_form_view" model="ir.ui.view">
+        <field name="name">dm.package.type.form</field>
+        <field name="model">dm.package.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_package_type_action" model="ir.actions.act_window">
+        <field name="name">Package Types</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.package.type</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new package type
+            </p>
+            <p>
+                Package types define the primary packaging format for products.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- INDIVIDUAL PACKING TYPES -->
+    <!-- ============================================================================ -->
+    <record id="dm_individual_packing_type_tree_view" model="ir.ui.view">
+        <field name="name">dm.individual.packing.type.tree</field>
+        <field name="model">dm.individual.packing.type</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_individual_packing_type_form_view" model="ir.ui.view">
+        <field name="name">dm.individual.packing.type.form</field>
+        <field name="model">dm.individual.packing.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_individual_packing_type_action" model="ir.actions.act_window">
+        <field name="name">Individual Packing Types</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.individual.packing.type</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new individual packing type
+            </p>
+            <p>
+                Individual packing types define how individual items are packaged.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- TEXTURES -->
+    <!-- ============================================================================ -->
+    <record id="dm_texture_tree_view" model="ir.ui.view">
+        <field name="name">dm.texture.tree</field>
+        <field name="model">dm.texture</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_texture_form_view" model="ir.ui.view">
+        <field name="name">dm.texture.form</field>
+        <field name="model">dm.texture</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_texture_action" model="ir.actions.act_window">
+        <field name="name">Textures</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.texture</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new texture
+            </p>
+            <p>
+                Textures describe the physical feel and appearance of products.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- STABILIZERS -->
+    <!-- ============================================================================ -->
+    <record id="dm_stabilizer_tree_view" model="ir.ui.view">
+        <field name="name">dm.stabilizer.tree</field>
+        <field name="model">dm.stabilizer</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_stabilizer_form_view" model="ir.ui.view">
+        <field name="name">dm.stabilizer.form</field>
+        <field name="model">dm.stabilizer</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_stabilizer_action" model="ir.actions.act_window">
+        <field name="name">Stabilizers</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.stabilizer</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new stabilizer
+            </p>
+            <p>
+                Stabilizers are ingredients that help maintain product consistency.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- TASTE/FLAVORS -->
+    <!-- ============================================================================ -->
+    <record id="dm_taste_flavor_tree_view" model="ir.ui.view">
+        <field name="name">dm.taste.flavor.tree</field>
+        <field name="model">dm.taste.flavor</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_taste_flavor_form_view" model="ir.ui.view">
+        <field name="name">dm.taste.flavor.form</field>
+        <field name="model">dm.taste.flavor</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_taste_flavor_action" model="ir.actions.act_window">
+        <field name="name">Taste/Flavors</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.taste.flavor</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new taste/flavor
+            </p>
+            <p>
+                Taste and flavor profiles describe the sensory characteristics of products.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- SHAPES -->
+    <!-- ============================================================================ -->
+    <record id="dm_shape_tree_view" model="ir.ui.view">
+        <field name="name">dm.shape.tree</field>
+        <field name="model">dm.shape</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_shape_form_view" model="ir.ui.view">
+        <field name="name">dm.shape.form</field>
+        <field name="model">dm.shape</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_shape_action" model="ir.actions.act_window">
+        <field name="name">Shapes</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.shape</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new shape
+            </p>
+            <p>
+                Shapes describe the physical form of products.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- COLORS (with hex_code field) -->
+    <!-- ============================================================================ -->
+    <record id="dm_color_tree_view" model="ir.ui.view">
+        <field name="name">dm.color.tree</field>
+        <field name="model">dm.color</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="hex_code" widget="color"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_color_form_view" model="ir.ui.view">
+        <field name="name">dm.color.form</field>
+        <field name="model">dm.color</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="hex_code" widget="color"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_color_action" model="ir.actions.act_window">
+        <field name="name">Colors</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.color</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new color
+            </p>
+            <p>
+                Colors define the visual appearance of products.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================================ -->
+    <!-- COMPLIANCE REGIONS -->
+    <!-- ============================================================================ -->
+    <record id="dm_compliance_region_tree_view" model="ir.ui.view">
+        <field name="name">dm.compliance.region.tree</field>
+        <field name="model">dm.compliance.region</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </tree>
+        </field>
+    </record>
+    
+    <record id="dm_compliance_region_form_view" model="ir.ui.view">
+        <field name="name">dm.compliance.region.form</field>
+        <field name="model">dm.compliance.region</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="active"/>
+                        <field name="description"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <record id="dm_compliance_region_action" model="ir.actions.act_window">
+        <field name="name">Compliance Regions</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">dm.compliance.region</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new compliance region
+            </p>
+            <p>
+                Compliance regions define regulatory standards the product meets.
+            </p>
+        </field>
+    </record>
+</odoo>

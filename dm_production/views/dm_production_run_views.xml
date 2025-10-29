@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Production Run Tree View -->
+    <!-- ============================================================ -->
+    <record id="view_dm_production_run_tree" model="ir.ui.view">
+        <field name="name">dm.production.run.tree</field>
+        <field name="model">dm.production.run</field>
+        <field name="arch" type="xml">
+            <tree string="Production Runs" decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="supplier_id"/>
+                <field name="production_start_date"/>
+                <field name="rts_date"/>
+                <field name="deal_count"/>
+                <!-- Phase 3: Container columns -->
+                <field name="total_teu" string="TEU" sum="Total TEU" optional="show"/>
+                <field name="total_containers" string="Containers" sum="Total" optional="show"/>
+                <field name="container_summary" optional="hide"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-primary="state == 'confirmed'" decoration-warning="state == 'production'" decoration-success="state in ['ready', 'done']" decoration-muted="state == 'cancelled'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Production Run Form View -->
+    <!-- ============================================================ -->
+    <record id="view_dm_production_run_form" model="ir.ui.view">
+        <field name="name">dm.production.run.form</field>
+        <field name="model">dm.production.run</field>
+        <field name="arch" type="xml">
+            <form string="Production Run">
+                <header>
+                    <button name="action_confirm" string="Confirm" type="object" invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_start_production" string="Start Production" type="object" invisible="state != 'confirmed'" class="btn-primary"/>
+                    <button name="action_mark_ready" string="Mark Ready" type="object" invisible="state != 'production'" class="btn-primary"/>
+                    <button name="action_done" string="Done" type="object" invisible="state != 'ready'" class="btn-primary"/>
+                    <button name="action_cancel" string="Cancel" type="object" invisible="state in ['done', 'cancelled']" class="btn-secondary" confirm="Cancel this production run? Active allocations will be cancelled."/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,production,ready,done"/>
+                </header>
+                
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_deals" type="object" class="oe_stat_button" icon="fa-file-text-o" invisible="deal_count == 0">
+                            <field name="deal_count" widget="statinfo" string="Deals"/>
+                        </button>
+                        
+                        <!-- Phase 3: TEU stat button -->
+                        <button name="action_view_deals" type="object" class="oe_stat_button" icon="fa-cube" invisible="total_teu == 0">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="total_teu" widget="float" options="{'precision': 1}"/>
+                                </span>
+                                <span class="o_stat_text">TEU</span>
+                            </div>
+                        </button>
+                        
+                        <!-- Phase 3: Containers stat button -->
+                        <button name="action_view_deals" type="object" class="oe_stat_button" icon="fa-archive" invisible="total_containers == 0">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="total_containers" widget="float" options="{'precision': 1}"/>
+                                </span>
+                                <span class="o_stat_text">Containers</span>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    
+                    <group>
+                        <group>
+                            <field name="supplier_id" readonly="state != 'draft'"/>
+                            <field name="production_start_date"/>
+                        </group>
+                        <group>
+                            <field name="rts_date"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <!-- Phase 3: Container summary -->
+                            <field name="container_summary" readonly="1" invisible="container_summary == False" string="Container Mix"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <!-- Phase 3A: Enhanced Allocated Deals tab with Add button -->
+                        <page string="Allocated Deals" name="allocated_deals">
+                            <group>
+                                <button name="action_add_deals" string="Add Deals" type="object" class="btn-primary" invisible="state not in ['draft', 'confirmed']"/>
+                            </group>
+                            
+                            <field name="deal_ids" readonly="1">
+                                <tree string="Allocated Deals" create="false" edit="false">
+                                    <field name="name"/>
+                                    <field name="customer_id"/>
+                                    <field name="rts_current" string="RTS"/>
+                                    <!-- Phase 3: TEU and container columns -->
+                                    <field name="total_teu" string="TEU" sum="Total TEU" optional="show"/>
+                                    <field name="total_containers" string="Containers" optional="show"/>
+                                    <field name="container_summary" string="Container Mix" optional="hide"/>
+                                    <field name="state"/>
+                                    
+                                    <!-- Remove button -->
+                                    <button name="action_remove_from_production" type="object" string="Remove" class="btn-sm btn-secondary" invisible="parent.state not in ['draft', 'confirmed']" confirm="Remove this deal from production run?"/>
+                                </tree>
+                            </field>
+                        </page>
+                        
+                        <!-- Phase 3: Container Details tab -->
+                        <page string="Container Details" name="container_details" invisible="total_teu == 0">
+                            
+                            <group string="Totals">
+                                <group>
+                                    <label for="total_teu"/>
+                                    <div class="o_row">
+                                        <field name="total_teu" class="oe_inline" readonly="1"/>
+                                        <span class="oe_inline"> TEU</span>
+                                    </div>
+                                    <label for="total_containers"/>
+                                    <div class="o_row">
+                                        <field name="total_containers" class="oe_inline" readonly="1"/>
+                                        <span class="oe_inline"> containers</span>
+                                    </div>
+                                </group>
+                                <group>
+                                    <field name="container_summary" readonly="1" string="Summary"/>
+                                </group>
+                            </group>
+                            
+                            <group string="Breakdown by Container Type">
+                                <field name="container_breakdown" nolabel="1" readonly="1" widget="text" placeholder="No container data available"/>
+                            </group>
+                            
+                        </page>
+                        
+                        <page string="Notes">
+                            <field name="notes" placeholder="Production notes..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Production Run Search View -->
+    <!-- ============================================================ -->
+    <record id="view_dm_production_run_search" model="ir.ui.view">
+        <field name="name">dm.production.run.search</field>
+        <field name="model">dm.production.run</field>
+        <field name="arch" type="xml">
+            <search string="Production Runs">
+                <field name="name" string="Production Run"/>
+                <field name="supplier_id"/>
+                <field name="rts_date"/>
+                <field name="production_start_date"/>
+                
+                <!-- Filters -->
+                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Confirmed" name="filter_confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter string="In Production" name="filter_production" domain="[('state', '=', 'production')]"/>
+                <filter string="Ready" name="filter_ready" domain="[('state', '=', 'ready')]"/>
+                <filter string="Done" name="filter_done" domain="[('state', '=', 'done')]"/>
+                
+                <separator/>
+                <filter string="Active" name="filter_active" domain="[('state', 'not in', ['done', 'cancelled'])]"/>
+                
+                <separator/>
+                <filter string="This Month (RTS)" name="filter_this_month" 
+                        domain="[('rts_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%%Y-%%m-%%d')),
+                                 ('rts_date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%%Y-%%m-%%d'))]"/>
+                <filter string="Next Month (RTS)" name="filter_next_month" 
+                        domain="[('rts_date', '&gt;=', (context_today() + relativedelta(months=1, day=1)).strftime('%%Y-%%m-%%d')),
+                                 ('rts_date', '&lt;=', (context_today() + relativedelta(months=1, day=31)).strftime('%%Y-%%m-%%d'))]"/>
+                
+                <!-- Group By -->
+                <group expand="0" string="Group By">
+                    <filter string="Supplier" name="group_supplier" context="{'group_by': 'supplier_id'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="RTS Month" name="group_rts_month" context="{'group_by': 'rts_date:month'}"/>
+                    <filter string="Production Start Month" name="group_prod_month" context="{'group_by': 'production_start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Production Run Action -->
+    <!-- ============================================================ -->
+    <record id="action_dm_production_run" model="ir.actions.act_window">
+        <field name="name">Production Runs</field>
+        <field name="res_model">dm.production.run</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{
+            'search_default_filter_active': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a Production Run
+            </p>
+            <p>
+                Production runs consolidate deals for manufacturing at a supplier facility.
+            </p>
+        </field>
+    </record>
+
+</odoo>

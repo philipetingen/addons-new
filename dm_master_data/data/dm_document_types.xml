@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Commercial Documents -->
+        <record id="doc_commercial_invoice" model="dm.document.type">
+            <field name="name">Commercial Invoice</field>
+            <field name="code">CI</field>
+            <field name="sequence">10</field>
+            <field name="category">commercial</field>
+            <field name="document_source">internal</field>
+            <field name="required_for">always</field>
+            <field name="required_before">departure</field>
+            <field name="is_mandatory">True</field>
+            <field name="checklist_items">Invoice number and date
+Customer details
+Product description and quantities
+Unit and total prices
+Payment terms
+Incoterms</field>
+        </record>
+        
+        <record id="doc_packing_list" model="dm.document.type">
+            <field name="name">Packing List</field>
+            <field name="code">PL</field>
+            <field name="sequence">20</field>
+            <field name="category">commercial</field>
+            <field name="document_source">internal</field>
+            <field name="required_for">always</field>
+            <field name="required_before">loading</field>
+            <field name="is_mandatory">True</field>
+            <field name="checklist_items">Package numbers and marks
+Product descriptions
+Quantities per package
+Net and gross weights
+Package dimensions</field>
+        </record>
+        
+        <!-- Transport Documents -->
+        <record id="doc_bill_of_lading" model="dm.document.type">
+            <field name="name">Bill of Lading</field>
+            <field name="code">BL</field>
+            <field name="sequence">30</field>
+            <field name="category">transport</field>
+            <field name="document_source">third_party</field>
+            <field name="required_for">always</field>
+            <field name="required_before">departure</field>
+            <field name="is_mandatory">True</field>
+            <field name="checklist_items">Shipper and consignee details
+Port of loading and discharge
+Container and seal numbers
+Product description
+Freight terms</field>
+        </record>
+        
+        <!-- Customs Documents -->
+        <record id="doc_customs_declaration" model="dm.document.type">
+            <field name="name">Customs Declaration</field>
+            <field name="code">CD</field>
+            <field name="sequence">40</field>
+            <field name="category">customs</field>
+            <field name="document_source">government</field>
+            <field name="required_for">export</field>
+            <field name="required_before">departure</field>
+            <field name="is_mandatory">True</field>
+            <field name="checklist_items">HS codes
+Customs value
+Country of origin
+Export license if required</field>
+        </record>
+        
+        <!-- Quality Documents -->
+        <record id="doc_certificate_of_origin" model="dm.document.type">
+            <field name="name">Certificate of Origin</field>
+            <field name="code">CO</field>
+            <field name="sequence">50</field>
+            <field name="category">quality</field>
+            <field name="document_source">government</field>
+            <field name="required_for">export</field>
+            <field name="required_before">departure</field>
+            <field name="has_expiry">False</field>
+            <field name="checklist_items">Product description
+Country of origin
+Manufacturer details
+Chamber of Commerce stamp</field>
+        </record>
+        
+        <record id="doc_quality_certificate" model="dm.document.type">
+            <field name="name">Quality Certificate</field>
+            <field name="code">QC</field>
+            <field name="sequence">60</field>
+            <field name="category">quality</field>
+            <field name="document_source">internal</field>
+            <field name="required_for">always</field>
+            <field name="required_before">loading</field>
+            <field name="checklist_items">Product specifications
+Test results
+Batch/lot numbers
+Production and expiry dates
+QC inspector signature</field>
+        </record>
+        
+        <!-- Regulatory Documents -->
+        <record id="doc_health_certificate" model="dm.document.type">
+            <field name="name">Health Certificate</field>
+            <field name="code">HC</field>
+            <field name="sequence">70</field>
+            <field name="category">regulatory</field>
+            <field name="document_source">government</field>
+            <field name="required_for">conditional</field>
+            <field name="required_before">departure</field>
+            <field name="has_expiry">True</field>
+            <field name="validity_days">30</field>
+            <field name="checklist_items">Product description
+Health inspection results
+Official stamp and signature
+Valid dates</field>
+        </record>
+        
+        <record id="doc_dangerous_goods" model="dm.document.type">
+            <field name="name">Dangerous Goods Declaration</field>
+            <field name="code">DGD</field>
+            <field name="sequence">80</field>
+            <field name="category">regulatory</field>
+            <field name="document_source">internal</field>
+            <field name="required_for">dangerous</field>
+            <field name="required_before">booking</field>
+            <field name="is_mandatory">True</field>
+            <field name="blocks_shipment">True</field>
+            <field name="checklist_items">UN number
+Proper shipping name
+Hazard class
+Packing group
+Emergency contact</field>
+        </record>
+        
+    </data>
+</odoo>

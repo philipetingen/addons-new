@@ -1,0 +1,99 @@
+<odoo>
+    <data>
+        
+        <!-- Product Composition Tree View -->
+        <record id="product_composition_tree_view" model="ir.ui.view">
+            <field name="name">product.composition.tree</field>
+            <field name="model">product.composition</field>
+            <field name="arch" type="xml">
+                <tree string="Composition" editable="bottom">
+                    <field name="sequence" widget="handle"/>
+                    <field name="ingredient_name"/>
+                    <field name="percentage"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Product Nutrition Fact Tree View -->
+        <record id="product_nutrition_fact_tree_view" model="ir.ui.view">
+            <field name="name">product.nutrition.fact.tree</field>
+            <field name="model">product.nutrition.fact</field>
+            <field name="arch" type="xml">
+                <tree string="Nutrition Facts" editable="bottom">
+                    <field name="sequence" widget="handle"/>
+                    <field name="nutrition_fact_name"/>
+                    <field name="absolute_value"/>
+                    <field name="unit"/>
+                    <field name="daily_value_percent"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Product Template Form View Extension -->
+        <record id="product_template_form_view_nutrition" model="ir.ui.view">
+            <field name="name">product.template.form.nutrition</field>
+            <field name="model">product.template</field>
+            <field name="inherit_id" ref="product.product_template_form_view"/>
+            <field name="arch" type="xml">
+                <notebook position="inside">
+                    <page string="Composition &amp; Nutrition" name="composition_nutrition">
+                        
+                        <!-- Composition Section -->
+                        <group string="Composition">
+                            <group colspan="2">
+                                <field name="composition_ids" nolabel="1" colspan="2">
+                                    <tree string="Composition" editable="bottom">
+                                        <field name="sequence" widget="handle" width="40px"/>
+                                        <field name="ingredient_name" width="60%"/>
+                                        <field name="percentage" width="30%"/>
+                                    </tree>
+                                </field>
+                                <field name="total_composition_percentage" readonly="1" string="Total %"/>
+                            </group>
+                            
+                            <group>
+                                <field name="allergens"/>
+                                <field name="storage_conditions"/>
+                                <field name="shelf_life"/>
+                            </group>
+                            
+                            <group>
+                                <field name="is_halal"/>
+                                <field name="is_kosher"/>
+                                <field name="is_gluten_free"/>
+                            </group>
+                        </group>
+                        
+                        <!-- Nutrition Facts Section -->
+                        <group string="Nutrition Facts">
+                            <group>
+                                <field name="servings_per_container"/>
+                                <field name="serving_size"/>
+                            </group>
+                            <group>
+                                <field name="calories"/>
+                            </group>
+                        </group>
+                        
+                        <!-- % Daily Value -->
+                        <group string="% Daily Value">
+                            <group colspan="2">
+                                <field name="nutrition_fact_ids" nolabel="1" colspan="2">
+                                    <tree string="Nutrition Facts" editable="bottom">
+                                        <field name="sequence" widget="handle" width="40px"/>
+                                        <field name="nutrition_fact_name" width="40%"/>
+                                        <field name="absolute_value" width="20%"/>
+                                        <field name="unit" width="15%"/>
+                                        <field name="daily_value_percent" width="20%"/>
+                                    </tree>
+                                </field>
+                            </group>
+                        </group>
+                        
+                    </page>
+                </notebook>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

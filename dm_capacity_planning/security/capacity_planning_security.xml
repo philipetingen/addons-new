@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        
+        <!-- 
+        Capacity Planning uses existing production security groups:
+        - dm_production.group_production_user
+        - dm_production.group_production_manager
+        
+        No additional groups needed for Phase 1.
+        -->
+        
+        <!-- Record Rules: Company-based isolation (future multi-company) -->
+        <record id="dm_vendor_capacity_comp_rule" model="ir.rule">
+            <field name="name">Vendor Capacity: multi-company</field>
+            <field name="model_id" ref="model_dm_vendor_capacity"/>
+            <field name="domain_force">['|', ('vendor_id.company_id', '=', False), ('vendor_id.company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+        
+        <record id="dm_vendor_capacity_constraint_comp_rule" model="ir.rule">
+            <field name="name">Vendor Capacity Constraint: multi-company</field>
+            <field name="model_id" ref="model_dm_vendor_capacity_constraint"/>
+            <field name="domain_force">['|', ('vendor_id.company_id', '=', False), ('vendor_id.company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+        
+    </data>
+</odoo>

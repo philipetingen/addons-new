@@ -1,0 +1,595 @@
+# -*- coding: utf-8 -*-
+
+from odoo import api, fields, models, _
+from odoo.exceptions import UserError, ValidationError
+import logging
+
+_logger = logging.getLogger(__name__)
+
+
+class DmProductionRun(models.Model):
+    """
+    Production Run - Phase 3A Enhanced
+    
+    Phase 3 Features:
+    - TEU and container totals from deals
+    - Container summary display
+    - Capacity validation before confirmation
+    - Pre-allocation capacity checking
+    
+    Phase 3A NEW Features:
+    - Capacity utilization percentage and color coding
+    - Add deals action
+    - Enhanced allocation helpers
+    """
+    _name = 'dm.production.run'
+    _description = 'Production Run'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _order = 'id desc'
+    
+    # ========================================================================
+    # CORE FIELDS
+    # ========================================================================
+    
+    name = fields.Char(
+        string='Production Run',
+        required=True,
+        copy=False,
+        default='New',
+        tracking=True
+    )
+    
+    supplier_id = fields.Many2one(
+        'res.partner',
+        string='Supplier/Manufacturer',
+        required=True,
+        domain=[('supplier_rank', '>', 0)],
+        tracking=True
+    )
+    
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('confirmed', 'Confirmed'),
+        ('production', 'In Production'),
+        ('ready', 'Ready to Ship'),
+        ('done', 'Done'),
+        ('cancelled', 'Cancelled'),
+    ], string='Status', default='draft', required=True, tracking=True)
+    
+    company_id = fields.Many2one(
+        'res.company',
+        string='Company',
+        required=True,
+        default=lambda self: self.env.company
+    )
+    
+    # ========================================================================
+    # DATE FIELDS
+    # ========================================================================
+    
+    production_start_date = fields.Date(
+        string='Production Start',
+        tracking=True
+    )
+    
+    rts_date = fields.Date(
+        string='Ready to Ship',
+        tracking=True,
+        help='Target RTS date for this production run'
+    )
+    
+    # ========================================================================
+    # ALLOCATION RELATIONSHIPS
+    # ========================================================================
+    
+    allocation_ids = fields.One2many(
+        'dm.allocation',
+        'production_run_id',
+        string='Deal Allocations',
+        help='Deals allocated to this production run'
+    )
+    
+    deal_ids = fields.Many2many(
+        'dm.deal',
+        compute='_compute_deals',
+        string='Deals',
+        help='Deals in this production run'
+    )
+    
+    deal_count = fields.Integer(
+        compute='_compute_deal_count',
+        string='Deal Count'
+    )
+    
+    # ========================================================================
+    # PHASE 3: TEU & CONTAINER TOTALS
+    # ========================================================================
+    
+    total_teu = fields.Float(
+        string='Total TEU',
+        compute='_compute_totals',
+        store=True,
+        digits=(10, 2),
+        help='Sum of TEU from all allocated deals'
+    )
+    
+    total_containers = fields.Float(
+        string='Total Containers',
+        compute='_compute_totals',
+        store=True,
+        digits=(10, 2),
+        help='Sum of containers from all allocated deals'
+    )
+    
+    container_summary = fields.Char(
+        string='Container Summary',
+        compute='_compute_container_summary',
+        help='e.g., "2×40HC + 1×20GP = 7.0 TEU"'
+    )
+    
+    container_breakdown = fields.Text(
+        string='Container Breakdown',
+        compute='_compute_container_breakdown',
+        help='Detailed breakdown by container type'
+    )
+    
+    # ========================================================================
+    # PHASE 3A: CAPACITY UTILIZATION DISPLAY
+    # ========================================================================
+    
+    capacity_utilization_pct = fields.Float(
+        string='Capacity Utilization %',
+        compute='_compute_capacity_utilization',
+        store=True,
+        help='Percentage of vendor capacity used'
+    )
+    
+    capacity_status_color = fields.Selection([
+        ('green', 'Healthy (<80%)'),
+        ('yellow', 'Near Limit (80-100%)'),
+        ('red', 'Over Capacity (>100%)')
+    ], string='Status Color', 
+        compute='_compute_capacity_utilization', 
+        store=True,
+        help='Visual indicator for capacity status'
+    )
+    
+    # Related field from capacity planning module (if installed)
+    month_capacity_teu = fields.Float(
+        string='Month Capacity (TEU)',
+        help='Vendor capacity for this month (if capacity planning installed)'
+    )
+    
+    # ========================================================================
+    # NOTES
+    # ========================================================================
+    
+    notes = fields.Text(string='Notes')
+    
+    # ========================================================================
+    # COMPUTED METHODS
+    # ========================================================================
+    
+    @api.depends('allocation_ids', 'allocation_ids.deal_id', 'allocation_ids.state')
+    def _compute_deals(self):
+        """Get deals from active allocations"""
+        for pr in self:
+            active_allocations = pr.allocation_ids.filtered(
+                lambda a: a.state in ['active', 'completed']
+            )
+            pr.deal_ids = active_allocations.mapped('deal_id')
+    
+    @api.depends('deal_ids')
+    def _compute_deal_count(self):
+        for pr in self:
+            pr.deal_count = len(pr.deal_ids)
+    
+    @api.depends('deal_ids', 'deal_ids.total_teu', 'deal_ids.total_containers')
+    def _compute_totals(self):
+        """
+        Phase 3: Calculate total TEU and containers from allocated deals
+        """
+        for pr in self:
+            total_teu = 0.0
+            total_containers = 0.0
+            
+            for deal in pr.deal_ids:
+                # Safe access with hasattr check
+                if hasattr(deal, 'total_teu') and deal.total_teu:
+                    total_teu += deal.total_teu
+                
+                if hasattr(deal, 'total_containers') and deal.total_containers:
+                    total_containers += deal.total_containers
+            
+            pr.total_teu = total_teu
+            pr.total_containers = total_containers
+            
+            _logger.debug(
+                f"PR {pr.name}: {total_containers:.2f} containers = {total_teu:.2f} TEU"
+            )
+    
+    @api.depends('total_teu', 'month_capacity_teu')
+    def _compute_capacity_utilization(self):
+        """
+        Phase 3A: Calculate capacity utilization percentage and status color
+        Gracefully handles when capacity planning module is not installed
+        """
+        for pr in self:
+            # Check if capacity planning is available
+            capacity_teu = 0.0
+            
+            # Try to get from vendor_capacity_id (dm_capacity_planning)
+            if hasattr(pr, 'vendor_capacity_id') and pr.vendor_capacity_id:
+                capacity_teu = pr.vendor_capacity_id.effective_capacity_teu
+            # Fallback to month_capacity_teu if set manually
+            elif pr.month_capacity_teu:
+                capacity_teu = pr.month_capacity_teu
+            
+            # Calculate utilization
+            if capacity_teu > 0:
+                utilization = (pr.total_teu / capacity_teu) * 100
+                pr.capacity_utilization_pct = utilization
+                
+                # Determine color
+                if utilization >= 100:
+                    pr.capacity_status_color = 'red'
+                elif utilization >= 80:
+                    pr.capacity_status_color = 'yellow'
+                else:
+                    pr.capacity_status_color = 'green'
+            else:
+                pr.capacity_utilization_pct = 0.0
+                pr.capacity_status_color = 'green'  # No capacity tracking = green
+    
+    @api.depends('deal_ids', 'deal_ids.total_teu', 'deal_ids.total_containers', 'deal_ids.container_summary')
+    def _compute_container_summary(self):
+        """
+        Phase 3: Generate container summary like "2×40HC + 1×20GP = 7.0 TEU"
+        
+        Note: dm.deal already has container_summary computed from lines.
+        This aggregates summaries from multiple deals.
+        """
+        for pr in self:
+            if not pr.deal_ids or pr.total_teu == 0:
+                pr.container_summary = ''
+                continue
+            
+            # If only one deal, use its summary
+            if len(pr.deal_ids) == 1:
+                deal = pr.deal_ids[0]
+                pr.container_summary = deal.container_summary if hasattr(deal, 'container_summary') else f"{pr.total_teu:.1f} TEU"
+                continue
+            
+            # Multiple deals - aggregate by container type from lines
+            container_counts = {}
+            
+            for deal in pr.deal_ids:
+                if hasattr(deal, 'line_ids'):
+                    for line in deal.line_ids:
+                        if hasattr(line, 'container_type_id') and line.container_type_id:
+                            ct = line.container_type_id
+                            containers = line.containers_required if hasattr(line, 'containers_required') else 0
+                            
+                            if ct.id not in container_counts:
+                                container_counts[ct.id] = {
+                                    'type': ct,
+                                    'count': 0
+                                }
+                            container_counts[ct.id]['count'] += containers
+            
+            # Build summary string
+            if not container_counts:
+                pr.container_summary = f"{pr.total_teu:.1f} TEU"
+            else:
+                parts = []
+                for data in sorted(container_counts.values(), 
+                                   key=lambda x: x['type'].teu_factor or 0, 
+                                   reverse=True):
+                    ct = data['type']
+                    count = data['count']
+                    parts.append(f"{count:.1f}×{ct.code}")
+                
+                pr.container_summary = " + ".join(parts) + f" = {pr.total_teu:.1f} TEU"
+    
+    @api.depends('deal_ids', 'deal_ids.line_ids', 'deal_ids.line_ids.container_type_id')
+    def _compute_container_breakdown(self):
+        """
+        Phase 3: Detailed breakdown by container type
+        """
+        for pr in self:
+            if not pr.deal_ids:
+                pr.container_breakdown = ''
+                continue
+            
+            container_counts = {}
+            
+            for deal in pr.deal_ids:
+                if hasattr(deal, 'line_ids'):
+                    for line in deal.line_ids:
+                        if hasattr(line, 'container_type_id') and line.container_type_id:
+                            ct = line.container_type_id
+                            containers = line.containers_required if hasattr(line, 'containers_required') else 0
+                            teu = line.container_teu if hasattr(line, 'container_teu') else 0
+                            
+                            if ct.id not in container_counts:
+                                container_counts[ct.id] = {
+                                    'type': ct,
+                                    'containers': 0,
+                                    'teu': 0
+                                }
+                            container_counts[ct.id]['containers'] += containers
+                            container_counts[ct.id]['teu'] += teu
+            
+            # Build breakdown text
+            if not container_counts:
+                pr.container_breakdown = 'No containers'
+            else:
+                lines = []
+                for data in sorted(container_counts.values(), 
+                                   key=lambda x: x['type'].teu_factor or 0, 
+                                   reverse=True):
+                    ct = data['type']
+                    containers = data['containers']
+                    teu = data['teu']
+                    lines.append(
+                        f"• {ct.name} ({ct.code}): {containers:.1f} containers = {teu:.1f} TEU"
+                    )
+                pr.container_breakdown = "\n".join(lines)
+    
+    # ========================================================================
+    # CREATE & WRITE HOOKS
+    # ========================================================================
+    
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Auto-generate sequence on creation"""
+        for vals in vals_list:
+            if vals.get('name', 'New') == 'New':
+                vals['name'] = self.env['ir.sequence'].next_by_code('dm.production.run') or 'New'
+        
+        runs = super().create(vals_list)
+        
+        # Phase 3A: Auto-allocate deals if passed in context
+        deal_ids_to_allocate = self.env.context.get('default_deal_ids_to_allocate')
+        if deal_ids_to_allocate and len(runs) == 1:
+            run = runs[0]
+            deals = self.env['dm.deal'].browse(deal_ids_to_allocate)
+            
+            # Create allocations for each deal
+            for deal in deals:
+                self.env['dm.allocation'].create({
+                    'deal_id': deal.id,
+                    'allocation_type': 'production',
+                    'production_run_id': run.id,
+                    'state': 'active',
+                })
+            
+            _logger.info(
+                f"Auto-allocated {len(deals)} deals to PR {run.name} from allocation board"
+            )
+        
+        return runs
+    
+    # ========================================================================
+    # PHASE 3: CAPACITY VALIDATION
+    # ========================================================================
+    
+    def _check_capacity_before_confirm(self):
+        """
+        Phase 3: Check capacity before confirmation
+        Returns: (can_confirm, warning_message)
+        """
+        self.ensure_one()
+        
+        # Check if capacity module installed
+        if 'vendor_capacity_id' not in self._fields:
+            return (True, '')  # No capacity module, allow confirmation
+        
+        if not self.supplier_id or not self.rts_date:
+            return (True, '')  # No supplier/date, can't check
+        
+        # Trigger capacity computation
+        if hasattr(self, '_compute_vendor_capacity'):
+            self._compute_vendor_capacity()
+        
+        if hasattr(self, '_compute_capacity_status'):
+            self._compute_capacity_status()
+        
+        # Check capacity status
+        capacity_status = self.capacity_status if hasattr(self, 'capacity_status') else False
+        
+        if capacity_status == 'over':
+            # Get details
+            violations = self.capacity_violations if hasattr(self, 'capacity_violations') else ''
+            return (False, violations or 'Capacity exceeded')
+        
+        elif capacity_status == 'warning':
+            # Near capacity - allow but warn
+            utilization = self.month_utilization_percent if hasattr(self, 'month_utilization_percent') else 0
+            return (True, f'Near capacity limit ({utilization:.0f}% utilized)')
+        
+        return (True, '')
+    
+    def action_confirm(self):
+        """
+        Phase 3: Enhanced confirmation with capacity check
+        """
+        for pr in self:
+            # Check capacity
+            can_confirm, message = pr._check_capacity_before_confirm()
+            
+            if not can_confirm:
+                raise ValidationError(_(
+                    "Cannot confirm production run: Capacity exceeded!\n\n%s\n\n"
+                    "Please:\n"
+                    "• Remove some deals from this run\n"
+                    "• Split production across multiple months\n"
+                    "• Increase vendor capacity\n"
+                    "• Use 'Check Capacity' button for details"
+                ) % message)
+            
+            # Show warning if near capacity
+            if message:
+                _logger.warning(f"PR {pr.name} confirmed with warning: {message}")
+        
+        self.write({'state': 'confirmed'})
+        return True
+    
+    # ========================================================================
+    # STATE MANAGEMENT
+    # ========================================================================
+    
+    def action_start_production(self):
+        """Start production"""
+        self.write({'state': 'production'})
+        return True
+    
+    def action_mark_ready(self):
+        """
+        Mark production as ready to ship.
+        Updates deal states to 'ready'.
+        """
+        for pr in self:
+            pr.write({'state': 'ready'})
+            
+            # Update deal states
+            for alloc in pr.allocation_ids.filtered(lambda a: a.state == 'active'):
+                deal = alloc.deal_id
+                if hasattr(deal, '_compute_deal_state_from_allocations'):
+                    deal._compute_deal_state_from_allocations()
+                    _logger.info(
+                        f"PR {pr.name} ready → Deal {deal.name} updated to '{deal.state}'"
+                    )
+            
+            _logger.info(f"Production Run {pr.name} marked as ready")
+        
+        return True
+    
+    def action_done(self):
+        """
+        Administrative closure of production run.
+        Completes allocations but maintains deal state.
+        """
+        for pr in self:
+            pr.write({'state': 'done'})
+            
+            # Complete allocations
+            active_allocs = pr.allocation_ids.filtered(lambda a: a.state == 'active')
+            if active_allocs:
+                active_allocs.action_complete()
+                _logger.info(
+                    f"PR {pr.name} done → {len(active_allocs)} allocations completed"
+                )
+            
+            _logger.info(f"Production Run {pr.name} marked as done")
+        
+        return True
+    
+    def action_cancel(self):
+        """Cancel production run"""
+        # Cancel active allocations
+        self.allocation_ids.filtered(
+            lambda a: a.state == 'active'
+        ).action_cancel()
+        self.write({'state': 'cancelled'})
+        return True
+    
+    # ========================================================================
+    # ACTION METHODS
+    # ========================================================================
+    
+    def action_view_deals(self):
+        """View allocated deals"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Allocated Deals'),
+            'res_model': 'dm.deal',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', self.deal_ids.ids)],
+            'context': self.env.context,
+        }
+    
+    def action_add_deals(self):
+        """
+        Phase 3A: Open wizard to add deals to this production run
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Add Deals to Production'),
+            'res_model': 'dm.production.allocation.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_production_run_id': self.id,
+                'default_create_new_pr': False,
+            },
+        }
+    
+    # ========================================================================
+    # PHASE 3A: ALLOCATION HELPERS
+    # ========================================================================
+    
+    def check_can_allocate_deal(self, deal):
+        """
+        Phase 3A: Check if a deal can be allocated to this production run
+        
+        Args:
+            deal: dm.deal record
+            
+        Returns:
+            dict: {
+                'can_allocate': bool,
+                'warning': str,
+                'new_total_teu': float,
+                'new_utilization': float
+            }
+        """
+        self.ensure_one()
+        
+        # Check supplier match
+        if deal.supplier_id != self.supplier_id:
+            return {
+                'can_allocate': False,
+                'warning': f"Supplier mismatch: Deal uses {deal.supplier_id.name}, PR uses {self.supplier_id.name}",
+                'new_total_teu': 0,
+                'new_utilization': 0
+            }
+        
+        # Calculate new totals
+        deal_teu = deal.total_teu if hasattr(deal, 'total_teu') else 0
+        new_total_teu = self.total_teu + deal_teu
+        
+        # Get capacity
+        capacity_teu = 0.0
+        if hasattr(self, 'vendor_capacity_id') and self.vendor_capacity_id:
+            capacity_teu = self.vendor_capacity_id.effective_capacity_teu
+        elif self.month_capacity_teu:
+            capacity_teu = self.month_capacity_teu
+        
+        # Check capacity if available
+        if capacity_teu > 0:
+            new_utilization = (new_total_teu / capacity_teu) * 100
+            
+            if new_utilization > 100:
+                return {
+                    'can_allocate': False,
+                    'warning': f"Would exceed capacity: {new_utilization:.0f}% utilized ({new_total_teu:.1f} / {capacity_teu:.1f} TEU)",
+                    'new_total_teu': new_total_teu,
+                    'new_utilization': new_utilization
+                }
+            elif new_utilization > 80:
+                return {
+                    'can_allocate': True,
+                    'warning': f"Near capacity: {new_utilization:.0f}% utilized ({new_total_teu:.1f} / {capacity_teu:.1f} TEU)",
+                    'new_total_teu': new_total_teu,
+                    'new_utilization': new_utilization
+                }
+        
+        return {
+            'can_allocate': True,
+            'warning': '',
+            'new_total_teu': new_total_teu,
+            'new_utilization': new_utilization if capacity_teu > 0 else 0
+        }

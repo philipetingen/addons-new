@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Capacity Check Wizard Form -->
+    <record id="view_dm_capacity_check_wizard_form" model="ir.ui.view">
+        <field name="name">dm.capacity.check.wizard.form</field>
+        <field name="model">dm.capacity.check.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Capacity Check Results">
+                <header>
+                    <button name="action_view_capacity_record" 
+                            string="View Capacity Record" 
+                            type="object" 
+                            class="oe_highlight"
+                            invisible="not production_run_id"/>
+                    <button name="action_close" 
+                            string="Close" 
+                            type="object" 
+                            class="btn-secondary"/>
+                </header>
+                
+                <sheet>
+                    <!-- Hidden fields for computations -->
+                    <field name="production_run_id" invisible="1"/>
+                    <field name="check_result_json" invisible="1"/>
+                    <field name="overall_compliant" invisible="1"/>
+                    
+                    <!-- Overall Status Banner -->
+                    <div class="alert alert-success" 
+                         role="alert" 
+                         invisible="overall_status != 'ok'"
+                         style="margin-bottom: 20px;">
+                        <strong>✅ Capacity Check: PASSED</strong>
+                        <p style="margin: 5px 0 0 0;">All capacity constraints are satisfied.</p>
+                    </div>
+                    
+                    <div class="alert alert-warning" 
+                         role="alert" 
+                         invisible="overall_status != 'warning'"
+                         style="margin-bottom: 20px;">
+                        <strong>⚠️ Capacity Check: WARNING</strong>
+                        <p style="margin: 5px 0 0 0;">Near capacity limit. Monitor additional allocations.</p>
+                    </div>
+                    
+                    <div class="alert alert-danger" 
+                         role="alert" 
+                         invisible="overall_status != 'over'"
+                         style="margin-bottom: 20px;">
+                        <strong>❌ Capacity Check: FAILED</strong>
+                        <p style="margin: 5px 0 0 0;">Capacity exceeded! Action required.</p>
+                    </div>
+                    
+                    <!-- Production Run Info -->
+                    <group>
+                        <group>
+                            <field name="vendor_name"/>
+                            <field name="rts_date"/>
+                            <field name="month_display"/>
+                        </group>
+                        <group>
+                            <field name="overall_status" widget="badge" 
+                                   decoration-success="overall_status == 'ok'"
+                                   decoration-warning="overall_status == 'warning'"
+                                   decoration-danger="overall_status == 'over'"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <!-- Visual Results Tab -->
+                        <page string="Visual Report" name="visual_report">
+                            <field name="result_html" 
+                                   widget="html" 
+                                   nolabel="1"/>
+                        </page>
+                        
+                        <!-- Detailed Metrics Tab -->
+                        <page string="Detailed Metrics" name="detailed_metrics">
+                            <group string="Total Capacity">
+                                <group>
+                                    <field name="this_run_teu" 
+                                           widget="float" 
+                                           options="{'digits': [10, 2]}"/>
+                                    <field name="month_total_teu" 
+                                           widget="float" 
+                                           options="{'digits': [10, 2]}"/>
+                                </group>
+                                <group>
+                                    <field name="month_capacity_teu" 
+                                           widget="float" 
+                                           options="{'digits': [10, 2]}"/>
+                                    <field name="month_available_teu" 
+                                           widget="float" 
+                                           options="{'digits': [10, 2]}"
+                                           decoration-success="month_available_teu &gt;= 0"
+                                           decoration-danger="month_available_teu &lt; 0"/>
+                                    <field name="month_utilization_percent" 
+                                           widget="progressbar"
+                                           decoration-success="month_utilization_percent &lt; 80"
+                                           decoration-warning="month_utilization_percent &gt;= 80 and month_utilization_percent &lt; 100"
+                                           decoration-danger="month_utilization_percent &gt;= 100"/>
+                                </group>
+                            </group>
+                            
+                            <group string="Constraint Checks" 
+                                   invisible="not constraint_check_ids">
+                                <field name="constraint_check_ids" 
+                                       nolabel="1" 
+                                       mode="tree">
+                                    <tree decoration-danger="not compliant" 
+                                          decoration-warning="utilization_percent &gt;= 80 and compliant"
+                                          decoration-success="utilization_percent &lt; 80">
+                                        <field name="status_icon" string=""/>
+                                        <field name="constraint_name"/>
+                                        <field name="used_teu" sum="Total Used"/>
+                                        <field name="limit_teu" sum="Total Limit"/>
+                                        <field name="utilization_percent" 
+                                               widget="progressbar"/>
+                                        <field name="over_by" 
+                                               sum="Total Over"
+                                               optional="show"/>
+                                        <field name="compliant" invisible="1"/>
+                                    </tree>
+                                </field>
+                            </group>
+                            
+                            <div class="alert alert-info" 
+                                 invisible="constraint_check_ids">
+                                <p><strong>ℹ️ No Constraints Configured</strong></p>
+                                <p>No product or category constraints are set for this capacity period.</p>
+                            </div>
+                        </page>
+                        
+                        <!-- Raw Data Tab (for debugging) -->
+                        <page string="Raw Data" 
+                              name="raw_data" 
+                              groups="base.group_no_one">
+                            <field name="check_result_json" 
+                                   widget="ace" 
+                                   options="{'mode': 'json'}"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Wizard Action -->
+    <record id="action_dm_capacity_check_wizard" model="ir.actions.act_window">
+        <field name="name">Check Capacity</field>
+        <field name="res_model">dm.capacity.check.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

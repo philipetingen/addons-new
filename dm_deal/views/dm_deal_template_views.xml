@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_dm_deal_template_tree" model="ir.ui.view">
+        <field name="name">dm.deal.template.tree</field>
+        <field name="model">dm.deal.template</field>
+        <field name="arch" type="xml">
+            <tree string="Deal Templates">
+                <field name="priority"/>
+                <field name="name"/>
+                <field name="template_type" widget="badge"/>
+                <field name="product_id" optional="show"/>
+                <field name="product_category_id" optional="show"/>
+                <field name="customer_id" optional="show"/>
+                <field name="supplier_id" optional="show"/>
+                <field name="sale_incoterm_id" optional="hide"/>
+                <field name="purchase_incoterm_id" optional="hide"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_dm_deal_template_form" model="ir.ui.view">
+        <field name="name">dm.deal.template.form</field>
+        <field name="model">dm.deal.template</field>
+        <field name="arch" type="xml">
+            <form string="Deal Template">
+                <sheet>
+                    <!-- Hidden fields for conditions -->
+                    <field name="template_type" invisible="1"/>
+                    <field name="sale_incoterm_id" invisible="1"/>
+                    <field name="purchase_incoterm_id" invisible="1"/>
+                    <field name="invoice_split" invisible="1"/>
+                    
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active"/>
+                    
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" placeholder="e.g., USA-China FOB Shanghai (Standard)"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group string="Template Type &amp; Priority">
+                            <field name="template_type" required="1"/>
+                            <field name="priority" 
+                                   help="Auto-set based on type. Higher = more specific"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Applicability">
+                            <field name="product_id" 
+                                   invisible="template_type != 'product'"
+                                   required="template_type == 'product'"/>
+                            <field name="product_category_id" 
+                                   invisible="template_type != 'category'"
+                                   required="template_type == 'category'"/>
+                            <field name="customer_id" 
+                                   domain="[('is_company', '=', True)]"/>
+                            <field name="supplier_id" 
+                                   domain="[('is_company', '=', True)]"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Sales Terms (to Customer)" name="sales_terms">
+                            <group>
+                                <group string="Payment &amp; Delivery">
+                                    <field name="sale_payment_term_id"/>
+                                    <field name="sale_incoterm_id"/>
+                                    <field name="sale_incoterm_location" 
+                                           placeholder="Optional: e.g., 'Los Angeles Port' - Uses Discharge Port if blank"
+                                           invisible="not sale_incoterm_id"/>
+                                </group>
+                                <group string="Default Ports">
+                                    <field name="discharge_port_id" 
+                                           string="Discharge Port (POD)"/>
+                                    <div class="alert alert-info" role="alert" invisible="sale_incoterm_id">
+                                        <p class="mb-0">
+                                            <strong>ℹ️ Sales Incoterm Location:</strong><br/>
+                                            If not specified in template, system will use:<br/>
+                                            <strong>Discharge Port name</strong> (where goods arrive for customer)
+                                        </p>
+                                    </div>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <page string="Purchase Terms (from Supplier)" name="purchase_terms">
+                            <group>
+                                <group string="Payment &amp; Delivery">
+                                    <field name="purchase_payment_term_id"/>
+                                    <field name="purchase_incoterm_id"/>
+                                    <field name="purchase_incoterm_location" 
+                                           placeholder="Optional: e.g., 'Shanghai Factory' - Uses Loading Port if blank"
+                                           invisible="not purchase_incoterm_id"/>
+                                </group>
+                                <group string="Default Ports">
+                                    <field name="loading_port_id" 
+                                           string="Loading Port (POL)"/>
+                                    <div class="alert alert-info" role="alert" invisible="purchase_incoterm_id">
+                                        <p class="mb-0">
+                                            <strong>ℹ️ Purchase Incoterm Location:</strong><br/>
+                                            If not specified in template, system will use:<br/>
+                                            <strong>Loading Port name</strong> (where we pick up from supplier)
+                                        </p>
+                                    </div>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <page string="Invoice &amp; Lead Times" name="invoice_config">
+                            <group>
+                                <group string="Invoice Split">
+                                    <field name="invoice_split"/>
+                                    <field name="product_invoice_percentage" 
+                                           invisible="not invoice_split"
+                                           widget="percentage"/>
+                                    <field name="service_invoice_percentage" 
+                                           invisible="not invoice_split"
+                                           widget="percentage"/>
+                                </group>
+                                <group string="Lead Times (for Wizard)">
+                                    <field name="total_lead_time" 
+                                           help="Total days from order to delivery"/>
+                                    <field name="production_lead_time" 
+                                           help="Days needed for production"/>
+                                    <field name="transit_lead_time" 
+                                           help="Days for ocean/air transit"/>
+                                </group>
+                            </group>
+                            
+                            <div class="alert alert-warning" role="alert" invisible="not invoice_split">
+                                <p class="mb-0">
+                                    <strong>⚠️ Invoice Split Mode:</strong><br/>
+                                    Customer will receive two invoices:<br/>
+                                    • <strong>Product Invoice:</strong> <field name="product_invoice_percentage" readonly="1"/>% of total<br/>
+                                    • <strong>Service Invoice:</strong> <field name="service_invoice_percentage" readonly="1"/>% (freight, insurance, admin)
+                                </p>
+                            </div>
+                            
+                            <div class="alert alert-info" role="alert">
+                                <p class="mb-0">
+                                    <strong>ℹ️ Lead Times:</strong><br/>
+                                    Used by the Deal Creation Wizard to calculate intermediate dates:<br/>
+                                    • <strong>Total Lead Time:</strong> ETA - this = RTS<br/>
+                                    • <strong>Production Lead Time:</strong> RTS - this = Production Start<br/>
+                                    • <strong>Transit Lead Time:</strong> ETA - this = ETD
+                                </p>
+                            </div>
+                        </page>
+                        
+                        <page string="Other Settings" name="other">
+                            <group>
+                                <group string="Company">
+                                    <field name="company_id" 
+                                           groups="base.group_multi_company"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="notes" 
+                                       placeholder="Additional information about this template..."/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_dm_deal_template_search" model="ir.ui.view">
+        <field name="name">dm.deal.template.search</field>
+        <field name="model">dm.deal.template</field>
+        <field name="arch" type="xml">
+            <search string="Search Templates">
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="product_category_id"/>
+                <field name="customer_id"/>
+                <field name="supplier_id"/>
+                
+                <filter name="active_templates" string="Active" 
+                        domain="[('active', '=', True)]"/>
+                <filter name="archived_templates" string="Archived" 
+                        domain="[('active', '=', False)]"/>
+                
+                <separator/>
+                
+                <filter name="product_type" string="Product Specific" 
+                        domain="[('template_type', '=', 'product')]"/>
+                <filter name="category_type" string="Category" 
+                        domain="[('template_type', '=', 'category')]"/>
+                <filter name="generic_type" string="Generic" 
+                        domain="[('template_type', '=', 'generic')]"/>
+                
+                <group expand="0" string="Group By">
+                    <filter name="group_by_type" string="Template Type" 
+                            context="{'group_by': 'template_type'}"/>
+                    <filter name="group_by_customer" string="Customer" 
+                            context="{'group_by': 'customer_id'}"/>
+                    <filter name="group_by_supplier" string="Supplier" 
+                            context="{'group_by': 'supplier_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_dm_deal_template" model="ir.actions.act_window">
+        <field name="name">Deal Templates</field>
+        <field name="res_model">dm.deal.template</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_active_templates': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first deal template
+            </p>
+            <p>
+                Templates define default commercial terms, ports, and configurations for deals.<br/>
+                Create product-specific, category, or generic templates with different priorities.
+            </p>
+        </field>
+    </record>
+    
+    <!-- NOTE: Menu item is defined in dm_deal_menu.xml -->
+</odoo>

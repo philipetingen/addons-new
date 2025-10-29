@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_dm_shipment_tree" model="ir.ui.view">
+        <field name="name">dm.shipment.tree</field>
+        <field name="model">dm.shipment</field>
+        <field name="arch" type="xml">
+            <tree><field name="name"/><field name="loading_port_id"/><field name="discharge_port_id"/><field name="etd"/><field name="eta"/><field name="deal_count"/><field name="state" widget="badge"/></tree>
+        </field>
+    </record>
+    <record id="view_dm_shipment_form" model="ir.ui.view">
+        <field name="name">dm.shipment.form</field>
+        <field name="model">dm.shipment</field>
+        <field name="arch" type="xml">
+            <form><header><button name="action_confirm" string="Confirm" type="object" invisible="state != 'draft'" class="btn-primary"/><button name="action_ship" string="Ship" type="object" invisible="state not in ['confirmed','loading']" class="btn-primary"/><button name="action_deliver" string="Deliver" type="object" invisible="state not in ['shipped','arrived']" class="btn-primary"/><field name="state" widget="statusbar"/></header><sheet><div class="oe_button_box"><button name="action_view_deals" type="object" class="oe_stat_button" icon="fa-file-text-o" invisible="deal_count == 0"><field name="deal_count" widget="statinfo" string="Deals"/></button></div><h1><field name="name"/></h1><group><group><field name="loading_port_id"/><field name="discharge_port_id"/></group><group><field name="etd"/><field name="eta"/></group></group><notebook><page string="Deals"><field name="deal_ids" readonly="1"/></page><page string="Notes"><field name="notes"/></page></notebook></sheet></form>
+        </field>
+    </record>
+    <record id="action_dm_shipment" model="ir.actions.act_window">
+        <field name="name">Shipments</field>
+        <field name="res_model">dm.shipment</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    <menuitem id="menu_dm_shipment_root" name="Shipment" sequence="40"/>
+    <menuitem id="menu_dm_shipments" name="Shipments" parent="menu_dm_shipment_root" action="action_dm_shipment"/>
+</odoo>

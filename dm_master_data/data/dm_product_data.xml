@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Sample Collections -->
+        <record id="collection_core" model="dm.collection">
+            <field name="name">Core</field>
+            <field name="description">Core product collection available year-round</field>
+        </record>
+        
+        <record id="collection_christmas" model="dm.collection">
+            <field name="name">Christmas</field>
+            <field name="description">Christmas seasonal collection</field>
+        </record>
+        
+        <record id="collection_halloween" model="dm.collection">
+            <field name="name">Halloween</field>
+            <field name="description">Halloween seasonal collection</field>
+        </record>
+        
+        <!-- Sample Package Types -->
+        <record id="package_type_bag" model="dm.package.type">
+            <field name="name">Bag</field>
+            <field name="description">Flexible bag packaging</field>
+        </record>
+        
+        <record id="package_type_box" model="dm.package.type">
+            <field name="name">Box</field>
+            <field name="description">Rigid box packaging</field>
+        </record>
+        
+        <!-- Sample Individual Packing Types -->
+        <record id="individual_packing_individually_wrapped" model="dm.individual.packing.type">
+            <field name="name">Individually Wrapped</field>
+            <field name="description">Each item individually wrapped</field>
+        </record>
+        
+        <!-- Sample Stabilizers -->
+        <record id="stabilizer_pectine" model="dm.stabilizer">
+            <field name="name">Pectine</field>
+            <field name="description">Natural gelling agent</field>
+        </record>
+        
+        <record id="stabilizer_gelatine" model="dm.stabilizer">
+            <field name="name">Gelatine</field>
+            <field name="description">Animal-based gelling agent</field>
+        </record>
+        
+        <!-- Sample Colors -->
+        <record id="color_red" model="dm.color">
+            <field name="name">Red</field>
+            <field name="hex_code">#FF0000</field>
+            <field name="description">Standard red color</field>
+        </record>
+        
+        <record id="color_green" model="dm.color">
+            <field name="name">Green</field>
+            <field name="hex_code">#00FF00</field>
+            <field name="description">Standard green color</field>
+        </record>
+        
+        <record id="color_blue" model="dm.color">
+            <field name="name">Blue</field>
+            <field name="hex_code">#0000FF</field>
+            <field name="description">Standard blue color</field>
+        </record>
+        
+        <!-- Sample Textures -->
+        <record id="texture_smooth" model="dm.texture">
+            <field name="name">Smooth</field>
+            <field name="description">Smooth texture</field>
+        </record>
+        
+        <record id="texture_rough" model="dm.texture">
+            <field name="name">Rough</field>
+            <field name="description">Rough texture</field>
+        </record>
+        
+        <!-- Sample Taste/Flavors -->
+        <record id="taste_flavor_sweet" model="dm.taste.flavor">
+            <field name="name">Sweet</field>
+            <field name="description">Sweet taste profile</field>
+        </record>
+        
+        <record id="taste_flavor_sour" model="dm.taste.flavor">
+            <field name="name">Sour</field>
+            <field name="description">Sour taste profile</field>
+        </record>
+        
+        <!-- Sample Shapes -->
+        <record id="shape_round" model="dm.shape">
+            <field name="name">Round</field>
+            <field name="description">Round shape</field>
+        </record>
+        
+        <record id="shape_square" model="dm.shape">
+            <field name="name">Square</field>
+            <field name="description">Square shape</field>
+        </record>
+        
+        <!-- Compliance Regions -->
+        <record id="compliance_us" model="dm.compliance.region">
+            <field name="name">US</field>
+            <field name="description">United States compliance standards</field>
+        </record>
+        
+        <record id="compliance_eu" model="dm.compliance.region">
+            <field name="name">EU</field>
+            <field name="description">European Union compliance standards</field>
+        </record>
+        
+        <record id="compliance_canada" model="dm.compliance.region">
+            <field name="name">Canada</field>
+            <field name="description">Canadian compliance standards</field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_product_composition_user,product.composition.user,model_product_composition,base.group_user,1,1,1,1
+access_product_composition_manager,product.composition.manager,model_product_composition,sales_team.group_sale_manager,1,1,1,1
+access_product_composition_stock_user,product.composition.stock.user,model_product_composition,stock.group_stock_user,1,1,1,1
+access_product_nutrition_fact_user,product.nutrition.fact.user,model_product_nutrition_fact,base.group_user,1,1,1,1
+access_product_nutrition_fact_manager,product.nutrition.fact.manager,model_product_nutrition_fact,sales_team.group_sale_manager,1,1,1,1
+access_product_nutrition_fact_stock_user,product.nutrition.fact.stock.user,model_product_nutrition_fact,stock.group_stock_user,1,1,1,1

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Sequence for Customer Downpayment Requests -->
+        <record id="sequence_dm_dp_customer" model="ir.sequence">
+            <field name="name">Customer Downpayment Request</field>
+            <field name="code">dm.dp.customer</field>
+            <field name="prefix">DP-C-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="number_increment">1</field>
+            <field name="number_next">1</field>
+            <field name="use_date_range">True</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+        <!-- Sequence for Supplier Downpayment Requests -->
+        <record id="sequence_dm_dp_supplier" model="ir.sequence">
+            <field name="name">Supplier Downpayment Request</field>
+            <field name="code">dm.dp.supplier</field>
+            <field name="prefix">DP-S-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="number_increment">1</field>
+            <field name="number_next">1</field>
+            <field name="use_date_range">True</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+        <!-- Sequence for Cash Flow Projections (if needed for reporting) -->
+        <record id="sequence_dm_cash_flow" model="ir.sequence">
+            <field name="name">Cash Flow Projection</field>
+            <field name="code">dm.cash.flow</field>
+            <field name="prefix">CF-%(year)s%(month)s-</field>
+            <field name="padding">4</field>
+            <field name="number_increment">1</field>
+            <field name="number_next">1</field>
+            <field name="use_date_range">True</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+        <!-- Sequence for Invoice Split References (for tracking) -->
+        <record id="sequence_dm_invoice_split" model="ir.sequence">
+            <field name="name">Invoice Split Configuration</field>
+            <field name="code">dm.invoice.split</field>
+            <field name="prefix">IS-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="number_increment">1</field>
+            <field name="number_next">1</field>
+            <field name="use_date_range">True</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        
+    </data>
+</odoo>

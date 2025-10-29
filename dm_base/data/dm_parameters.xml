@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- System Parameters -->
+        <record id="dm_cascade_logging" model="ir.config_parameter">
+            <field name="key">dm.cascade.logging</field>
+            <field name="value">True</field>
+        </record>
+        
+        <record id="dm_enforce_single_allocation" model="ir.config_parameter">
+            <field name="key">dm.enforce_single_allocation</field>
+            <field name="value">True</field>
+        </record>
+        
+        <record id="dm_auto_invoice_on_loading" model="ir.config_parameter">
+            <field name="key">dm.auto_invoice_on_loading</field>
+            <field name="value">True</field>
+        </record>
+        
+        <record id="dm_container_min_utilization" model="ir.config_parameter">
+            <field name="key">dm.container.min_utilization</field>
+            <field name="value">65</field>
+        </record>
+        
+        <record id="dm_batch_processing_size" model="ir.config_parameter">
+            <field name="key">dm.batch.processing_size</field>
+            <field name="value">100</field>
+        </record>
+        
+        <record id="dm_price_decimal_precision" model="ir.config_parameter">
+            <field name="key">dm.price.decimal_precision</field>
+            <field name="value">6</field>
+        </record>
+        
+        <record id="dm_quantity_decimal_precision" model="ir.config_parameter">
+            <field name="key">dm.quantity.decimal_precision</field>
+            <field name="value">3</field>
+        </record>
+        
+        <record id="dm_seal_format" model="ir.config_parameter">
+            <field name="key">dm.seal.format</field>
+            <field name="value">XX-NNNNNN</field>
+        </record>
+        
+        <record id="dm_virtual_stock_validation" model="ir.config_parameter">
+            <field name="key">dm.virtual_stock.validation</field>
+            <field name="value">True</field>
+        </record>
+        
+        <record id="dm_show_cancel_wizard" model="ir.config_parameter">
+            <field name="key">dm.show_cancel_wizard</field>
+            <field name="value">True</field>
+        </record>
+        
+    </data>
+</odoo>

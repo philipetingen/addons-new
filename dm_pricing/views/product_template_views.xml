@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ========================================== -->
+    <!-- CUSTOMER PRICING TAB -->
+    <!-- ========================================== -->
+    
+    <record id="product_template_form_view_dm_customer_pricing" model="ir.ui.view">
+        <field name="name">product.template.form.dm.customer.pricing</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add Customer Pricing tab after Purchase -->
+            <xpath expr="//page[@name='purchase']" position="after">
+                
+                <page string="Customer Pricing" name="customer_pricing">
+                    <group>
+                        <group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>Quick Entry Interface</strong>
+                                <p>Add customer-specific prices here. They automatically sync to Odoo pricelists.</p>
+                                <ul>
+                                    <li>Package prices maintain 6-decimal precision</li>
+                                    <li>One pricelist per customer-currency created automatically</li>
+                                    <li>Changes sync to <code>product.pricelist.item</code> records</li>
+                                </ul>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <field name="dm_customer_pricelist_ids" 
+                           context="{'default_product_id': product_variant_id}">
+                        <tree editable="bottom" create="1" delete="1">
+                            <field name="partner_id" required="1"/>
+                            <field name="product_id" column_invisible="1"/>
+                            <field name="customer_product_code" optional="show"/>
+                            <field name="customer_product_description" optional="hide"/>
+                            <field name="product_packaging_id" 
+                                   domain="[('product_id', '=', product_id)]" 
+                                   required="1"/>
+                            <field name="package_price" 
+                                   widget="monetary" 
+                                   options="{'currency_field': 'currency_id'}"
+                                   required="1"/>
+                            <field name="unit_price" 
+                                   widget="monetary" 
+                                   options="{'currency_field': 'currency_id'}"
+                                   optional="show" 
+                                   readonly="1"/>
+                            <field name="price_per_kg" 
+                                   widget="monetary" 
+                                   options="{'currency_field': 'currency_id'}"
+                                   optional="show" 
+                                   readonly="1"/>
+                            <field name="moq_packages" optional="show"/>
+                            <field name="moq_enforcement" optional="hide"/>
+                            <field name="currency_id" groups="base.group_multi_currency" optional="show"/>
+                            <field name="date_start" optional="show"/>
+                            <field name="date_end" optional="hide"/>
+                            <field name="pricelist_id" optional="hide" readonly="1" string="→ Pricelist"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </tree>
+                    </field>
+                </page>
+                
+            </xpath>
+        </field>
+    </record>
+     
+	<!-- ========================================== -->
+	<!-- EXTEND PURCHASING TAB WITH PACKAGE PRICING -->
+	<!-- ========================================== -->
+
+	<record id="product_template_form_view_dm_vendor_pricing_purchase" model="ir.ui.view">
+		<field name="name">product.template.form.dm.vendor.pricing.purchase</field>
+		<field name="model">product.template</field>
+		<field name="inherit_id" ref="purchase.view_product_supplier_inherit"/>
+		<field name="arch" type="xml">
+			
+			<!-- Make seller_ids tree editable and use custom view -->
+			<xpath expr="//page[@name='purchase']//field[@name='seller_ids']" position="attributes">
+				<attribute name="context">{'tree_view_ref': 'dm_pricing.product_supplierinfo_tree_view_dm'}</attribute>
+			</xpath>
+			
+		</field>
+	</record>
+
+	<!-- Create custom tree view for supplier info with DM fields -->
+	<record id="product_supplierinfo_tree_view_dm" model="ir.ui.view">
+		<field name="name">product.supplierinfo.tree.dm</field>
+		<field name="model">product.supplierinfo</field>
+		<field name="arch" type="xml">
+			<tree editable="bottom">
+				<field name="sequence" widget="handle"/>
+				
+				<!-- Hidden fields required by Odoo's internal domains -->
+				<field name="company_id" column_invisible="1"/>
+				<field name="product_tmpl_id" column_invisible="1"/>
+				<field name="product_id" column_invisible="1"/>
+				
+				<field name="partner_id" domain="[('is_company', '=', True)]"/>
+				
+				<!-- DM Package Pricing Toggle -->
+				<field name="dm_is_package_price" widget="boolean_toggle" string="Pkg"/>
+				
+				<!-- FIXED: Packaging with proper domain (template-aware) -->
+				<field name="dm_packaging_id" 
+					   domain="[('product_id.product_tmpl_id', '=', product_tmpl_id)]"
+					   context="{'default_product_tmpl_id': product_tmpl_id}"
+					   optional="show"
+					   invisible="dm_is_package_price == False"/>
+				
+				<!-- Package Price -->
+				<field name="dm_package_price" 
+					   optional="show"
+					   invisible="dm_is_package_price == False"
+					   widget="monetary"
+					   options="{'currency_field': 'currency_id'}"/>
+				
+				<!-- Computed Unit Price (from package price) -->
+				<field name="dm_unit_price_computed"
+					   optional="show"
+					   invisible="dm_is_package_price == False"
+					   readonly="1"
+					   string="Unit Price"
+					   widget="monetary"
+					   options="{'currency_field': 'currency_id'}"/>
+				
+				<!-- Standard price (when not using package pricing) -->
+				<field name="price" 
+					   invisible="dm_is_package_price == True"
+					   widget="monetary"
+					   options="{'currency_field': 'currency_id'}"/>
+				
+				<field name="min_qty"/>
+				<field name="currency_id" groups="base.group_multi_currency" optional="show"/>
+				
+				<!-- Vendor codes - REMOVED duplicate dm_vendor_product_code -->
+				<field name="product_code" optional="show" string="Vendor Code"/>
+				
+				<!-- Lead Times -->
+				<field name="delay"/>
+				<field name="dm_production_lead_time" optional="hide"/>
+				
+				<!-- Logistics -->
+				<field name="dm_loading_port_id" optional="hide"/>
+				<field name="dm_factory_location" optional="hide"/>
+				
+				<!-- Capacity -->
+				<field name="dm_monthly_capacity_packages" optional="hide"/>
+				
+				<!-- Preferred -->
+				<field name="dm_preferred_vendor" widget="boolean_toggle" optional="show"/>
+				
+				<!-- Validity -->
+				<field name="date_start" optional="hide"/>
+				<field name="date_end" optional="hide"/>
+			</tree>
+		</field>
+	</record>
+    
+    <!-- ========================================== -->
+    <!-- VENDOR PRICING TAB (Detailed View) -->
+    <!-- ========================================== -->
+    
+    <record id="product_template_form_view_dm_vendor_pricing_tab" model="ir.ui.view">
+        <field name="name">product.template.form.dm.vendor.pricing.tab</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add Vendor Pricing tab after Purchase (or Customer Pricing if it exists) -->
+            <xpath expr="//page[@name='purchase']" position="after">
+                
+                <page string="Vendor Pricing" name="vendor_pricing">
+                    <group>
+                        <group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>Vendor Pricing Details</strong>
+                                <p>Manage vendor-specific pricing, capacity, and logistics.</p>
+                                <ul>
+                                    <li>Package prices with 6-decimal precision</li>
+                                    <li>Production capacity tracking</li>
+                                    <li>Logistics information (ports, lead times)</li>
+                                    <li>Syncs with Purchasing tab</li>
+                                </ul>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <field name="seller_ids" 
+                           context="{'default_product_id': product_variant_id, 'default_product_tmpl_id': id}">
+                        <tree editable="bottom">
+                            <field name="sequence" widget="handle"/>
+
+                            <field name="company_id" column_invisible="1"/>
+							<field name="product_tmpl_id" column_invisible="1"/>
+							<field name="product_id" column_invisible="1"/>
+
+							<field name="partner_id" required="1" domain="[('is_company', '=', True)]"/>
+                             
+                            <!-- Package Pricing Toggle -->
+                            <field name="dm_is_package_price" widget="boolean_toggle"/>
+                            
+                            <!-- FIXED: Packaging with proper domain (template-aware) -->
+                            <field name="dm_packaging_id" 
+                                   domain="[('product_id.product_tmpl_id', '=', product_tmpl_id)]"
+                                   context="{'default_product_tmpl_id': product_tmpl_id}"
+                                   invisible="dm_is_package_price == False"
+                                   required="dm_is_package_price == True"/>
+                            
+                            <!-- Package Price -->
+                            <field name="dm_package_price" 
+                                   invisible="dm_is_package_price == False"
+                                   required="dm_is_package_price == True"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            
+                            <!-- Computed prices -->
+                            <field name="dm_unit_price_computed"
+                                   invisible="dm_is_package_price == False"
+                                   readonly="1"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="dm_price_per_kg"
+                                   invisible="dm_is_package_price == False"
+                                   readonly="1"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            
+                            <!-- Standard Odoo fields -->
+                            <field name="price" 
+                                   invisible="dm_is_package_price == True"
+                                   widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"/>
+                            <field name="min_qty"/>
+                            <field name="currency_id" groups="base.group_multi_currency"/>
+                            
+                            <!-- Vendor code - using standard field only -->
+                            <field name="product_code" optional="show" string="Vendor Code"/>
+                            <field name="product_name" optional="hide"/>
+                            
+                            <!-- Lead Times -->
+                            <field name="delay"/>
+                            <field name="dm_production_lead_time" optional="show"/>
+                            
+                            <!-- Logistics -->
+                            <field name="dm_loading_port_id" optional="show"/>
+                            <field name="dm_factory_location" optional="hide"/>
+                            
+                            <!-- Capacity -->
+                            <field name="dm_monthly_capacity_packages" optional="show"/>
+                            
+                            <!-- Preferred -->
+                            <field name="dm_preferred_vendor" widget="boolean_toggle"/>
+                            
+                            <!-- Validity -->
+                            <field name="date_start" optional="hide"/>
+                            <field name="date_end" optional="hide"/>
+                        </tree>
+                    </field>
+                </page>
+                
+            </xpath>
+        </field>
+    </record>
+    
+</odoo>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Security Categories -->
+        <record id="module_category_dm_financial" model="ir.module.category">
+            <field name="name">DonnaMello Financial</field>
+            <field name="description">Financial management for DonnaMello Distribution</field>
+            <field name="sequence">50</field>
+        </record>
+        
+        <!-- Security Groups -->
+        
+        <!-- Financial User: Basic access to view and create financial documents -->
+        <record id="group_dm_financial_user" model="res.groups">
+            <field name="name">Financial User</field>
+            <field name="category_id" ref="module_category_dm_financial"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">User can view and create downpayment requests, view invoices and payment schedules</field>
+        </record>
+        
+        <!-- Financial Manager: Full access to financial operations -->
+        <record id="group_dm_financial_manager" model="res.groups">
+            <field name="name">Financial Manager</field>
+            <field name="category_id" ref="module_category_dm_financial"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_financial_user'))]"/>
+            <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+            <field name="comment">Manager can approve payments, generate invoices, manage split configurations</field>
+        </record>
+        
+        <!-- Financial Admin: System configuration and milestone management -->
+        <record id="group_dm_financial_admin" model="res.groups">
+            <field name="name">Financial Administrator</field>
+            <field name="category_id" ref="module_category_dm_financial"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_financial_manager'))]"/>
+            <field name="comment">Admin can configure payment milestones, payment terms, and system settings</field>
+        </record>
+        
+        <!-- Record Rules -->
+        
+        <!-- Downpayment Requests: Users see all, managers can modify -->
+        <record id="dm_downpayment_request_user_rule" model="ir.rule">
+            <field name="name">Downpayment Request: User Access</field>
+            <field name="model_id" ref="model_dm_downpayment_request"/>
+            <field name="domain_force">['|', ('create_uid', '=', user.id), ('state', '!=', 'draft')]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        
+        <record id="dm_downpayment_request_manager_rule" model="ir.rule">
+            <field name="name">Downpayment Request: Manager Full Access</field>
+            <field name="model_id" ref="model_dm_downpayment_request"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+        
+        <!-- Invoice Split Config: Tied to deal access -->
+        <record id="dm_invoice_split_config_rule" model="ir.rule">
+            <field name="name">Invoice Split Config: Deal-based Access</field>
+            <field name="model_id" ref="model_dm_invoice_split_config"/>
+            <field name="domain_force">[('deal_id.company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_user'))]"/>
+        </record>
+        
+        <!-- Payment Milestones: Read-only for users, writable by admin -->
+        <record id="dm_payment_milestone_user_rule" model="ir.rule">
+            <field name="name">Payment Milestone: User Read-Only</field>
+            <field name="model_id" ref="model_dm_payment_milestone"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_user'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        
+        <record id="dm_payment_milestone_admin_rule" model="ir.rule">
+            <field name="name">Payment Milestone: Admin Full Access</field>
+            <field name="model_id" ref="model_dm_payment_milestone"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_admin'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+        
+        <!-- Cash Flow: Company-based access -->
+        <record id="dm_cash_flow_company_rule" model="ir.rule">
+            <field name="name">Cash Flow: Company Access</field>
+            <field name="model_id" ref="model_dm_cash_flow"/>
+            <field name="domain_force">[('deal_id.company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[(4, ref('group_dm_financial_user'))]"/>
+        </record>
+        
+        <!-- Multi-company Rules -->
+        <record id="dm_downpayment_multi_company_rule" model="ir.rule">
+            <field name="name">Downpayment Request: Multi-Company</field>
+            <field name="model_id" ref="model_dm_downpayment_request"/>
+            <field name="domain_force">[('deal_id.company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+        
+        <record id="dm_invoice_split_multi_company_rule" model="ir.rule">
+            <field name="name">Invoice Split Config: Multi-Company</field>
+            <field name="model_id" ref="model_dm_invoice_split_config"/>
+            <field name="domain_force">[('deal_id.company_id', 'in', company_ids)]</field>
+            <field name="global" eval="True"/>
+        </record>
+        
+    </data>
+</odoo>

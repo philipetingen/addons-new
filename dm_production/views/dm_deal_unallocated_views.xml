@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Unallocated Deals Tree View - Enhanced with Production Start -->
+    <record id="view_dm_deal_unallocated_tree" model="ir.ui.view">
+        <field name="name">dm.deal.unallocated.tree</field>
+        <field name="model">dm.deal</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <tree string="Unallocated Deals" 
+                  create="false"
+                  decoration-danger="(rts_current or rts_requested) and (rts_current or rts_requested) &lt; (context_today() + relativedelta(days=14))"
+                  decoration-warning="(rts_current or rts_requested) and (rts_current or rts_requested) &lt; (context_today() + relativedelta(days=30))"
+                  decoration-info="(production_start_current or production_start_requested) and (production_start_current or production_start_requested) &lt; context_today()">
+                
+                <!-- Core Deal Info -->
+                <field name="name" string="Deal #"/>
+                <field name="customer_id"/>
+                <field name="supplier_id"/>
+                
+                <!-- Production Timeline - Key Milestones -->
+                <field name="production_start_current" 
+                       string="Production Start" 
+                       optional="show"
+                       widget="date"/>
+                <field name="production_start_requested" 
+                       string="Prod Start (Req)" 
+                       optional="hide"
+                       widget="date"/>
+                
+                <field name="rts_current" 
+                       string="RTS Target" 
+                       optional="show"
+                       widget="date"/>
+                <field name="rts_requested" 
+                       string="RTS (Req)" 
+                       optional="hide"
+                       widget="date"/>
+                
+                <!-- Physical Capacity Info (Logistics-focused) -->
+                <field name="total_teu" string="TEU" sum="Total TEU" optional="show"/>
+                <field name="total_containers" string="Containers" sum="Total" optional="show"/>
+                <field name="container_summary" string="Container Mix" optional="show"/>
+                
+                <!-- State -->
+                <field name="state" optional="show"/>
+                
+                <!-- Quick Allocate Button -->
+                <button name="action_quick_allocate_to_pr" 
+                        type="object" 
+                        string="→PR" 
+                        class="btn-sm btn-primary"
+                        title="Quick allocate to production run"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Unallocated Deals Search View - Enhanced with Production Start Filters -->
+    <record id="view_dm_deal_unallocated_search" model="ir.ui.view">
+        <field name="name">dm.deal.unallocated.search</field>
+        <field name="model">dm.deal</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <search string="Unallocated Deals">
+                <!-- Search Fields -->
+                <field name="name" string="Deal #"/>
+                <field name="customer_id"/>
+                <field name="supplier_id"/>
+                <field name="rts_current" string="RTS Date"/>
+                <field name="rts_requested" string="RTS Requested"/>
+                <field name="production_start_current" string="Production Start"/>
+                <field name="production_start_requested" string="Prod Start Requested"/>
+                
+                <separator/>
+                
+                <!-- Production Start Filters -->
+                <filter name="production_overdue" 
+                        string="Production Overdue"
+                        domain="['|',
+                            ('production_start_current', '&lt;', context_today()),
+                            '&amp;',
+                            ('production_start_current', '=', False),
+                            ('production_start_requested', '&lt;', context_today())
+                        ]"
+                        help="Production should have started already"/>
+                
+                <filter name="production_soon" 
+                        string="Production Starting Soon"
+                        domain="['|',
+                            '&amp;',
+                            ('production_start_current', '&gt;=', context_today()),
+                            ('production_start_current', '&lt;', (context_today() + relativedelta(days=7))),
+                            '&amp;',
+                            ('production_start_current', '=', False),
+                            '&amp;',
+                            ('production_start_requested', '&gt;=', context_today()),
+                            ('production_start_requested', '&lt;', (context_today() + relativedelta(days=7)))
+                        ]"
+                        help="Production starts within 7 days"/>
+                
+                <separator/>
+                
+                <!-- RTS Filters -->
+                <filter name="ready_to_allocate" 
+                        string="Ready to Allocate"
+                        domain="[('state', 'in', ['confirmed', 'ready'])]"/>
+                
+                <filter name="urgent" 
+                        string="Urgent (RTS &lt;14 days)"
+                        domain="['|',
+                            ('rts_current', '&lt;', (context_today() + relativedelta(days=14))),
+                            '&amp;',
+                            ('rts_current', '=', False),
+                            ('rts_requested', '&lt;', (context_today() + relativedelta(days=14)))
+                        ]"/>
+                
+                <filter name="this_month" 
+                        string="RTS This Month"
+                        domain="['|',
+                            '&amp;',
+                            ('rts_current', '&gt;=', context_today().strftime('%Y-%m-01')),
+                            ('rts_current', '&lt;=', (context_today() + relativedelta(months=1, day=1, days=-1)).strftime('%Y-%m-%d')),
+                            '&amp;',
+                            ('rts_current', '=', False),
+                            '&amp;',
+                            ('rts_requested', '&gt;=', context_today().strftime('%Y-%m-01')),
+                            ('rts_requested', '&lt;=', (context_today() + relativedelta(months=1, day=1, days=-1)).strftime('%Y-%m-%d'))
+                        ]"/>
+                
+                <filter name="next_month" 
+                        string="RTS Next Month"
+                        domain="['|',
+                            '&amp;',
+                            ('rts_current', '&gt;=', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d')),
+                            ('rts_current', '&lt;=', (context_today() + relativedelta(months=2, day=1, days=-1)).strftime('%Y-%m-%d')),
+                            '&amp;',
+                            ('rts_current', '=', False),
+                            '&amp;',
+                            ('rts_requested', '&gt;=', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d')),
+                            ('rts_requested', '&lt;=', (context_today() + relativedelta(months=2, day=1, days=-1)).strftime('%Y-%m-%d'))
+                        ]"/>
+                
+                <separator/>
+                
+                <!-- Group By -->
+                <group expand="1" string="Group By">
+                    <filter name="group_by_supplier" 
+                            string="Supplier"
+                            context="{'group_by': 'supplier_id'}"/>
+                    
+                    <filter name="group_by_customer" 
+                            string="Customer"
+                            context="{'group_by': 'customer_id'}"/>
+                    
+                    <filter name="group_by_production_start_month" 
+                            string="Production Start Month"
+                            context="{'group_by': 'production_start_current:month'}"/>
+                    
+                    <filter name="group_by_rts_current_month" 
+                            string="RTS Month (Target)"
+                            context="{'group_by': 'rts_current:month'}"/>
+                    
+                    <filter name="group_by_rts_requested_month" 
+                            string="RTS Month (Requested)"
+                            context="{'group_by': 'rts_requested:month'}"/>
+                    
+                    <filter name="group_by_state" 
+                            string="State"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Unallocated Deals Action -->
+    <record id="action_dm_deal_unallocated" model="ir.actions.act_window">
+        <field name="name">Unallocated Deals</field>
+        <field name="res_model">dm.deal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[
+            ('production_allocated', '=', False),
+            ('state', 'in', ['confirmed', 'ready'])
+        ]</field>
+        <field name="context">{
+            'search_default_group_by_supplier': 1,
+            'search_default_ready_to_allocate': 1,
+        }</field>
+        <!-- Explicitly set custom search view -->
+        <field name="search_view_id" ref="view_dm_deal_unallocated_search"/>
+        <!-- Explicitly set custom tree view -->
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_dm_deal_unallocated_tree')}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No unallocated deals found
+            </p>
+            <p>
+                All deals are either already allocated to production or not yet confirmed.
+            </p>
+        </field>
+    </record>
+    
+</odoo>

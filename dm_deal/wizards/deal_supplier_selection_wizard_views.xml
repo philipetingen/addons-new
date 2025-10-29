@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Supplier Selection Wizard Form -->
+    <record id="view_deal_supplier_selection_wizard_form" model="ir.ui.view">
+        <field name="name">dm.deal.supplier.selection.wizard.form</field>
+        <field name="model">dm.deal.supplier.selection.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Select Supplier">
+                <sheet>
+                    <!-- Hidden fields for computations and domains -->
+                    <field name="currency_id" invisible="1"/>
+                    <field name="available_supplier_partner_ids" invisible="1"/>
+                    
+                    <group>
+                        <group>
+                            <h3>Multiple suppliers available for this product</h3>
+                            <p>Please select the supplier you want to use for this deal.</p>
+                        </group>
+                    </group>
+                    
+                    <group>
+                        <group string="Product Information">
+                            <field name="product_id" readonly="1"/>
+                            <field name="product_packaging_id" readonly="1"/>
+                            <field name="quantity_packaging" readonly="1"/>
+                        </group>
+                        <group string="Deal Information">
+                            <field name="deal_id" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Available Suppliers">
+                        <field name="available_supplier_ids" nolabel="1">
+                            <tree editable="bottom" 
+                                  decoration-success="preferred_vendor == True"
+                                  decoration-bf="preferred_vendor == True">
+                                <field name="partner_id" readonly="1"/>
+                                <field name="package_price" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                <field name="currency_id" readonly="1" column_invisible="1"/>
+                                <field name="lead_time_days" readonly="1"/>
+                                <field name="min_qty_packages" readonly="1" optional="show"/>
+                                <field name="vendor_moq_packages" readonly="1" optional="show"/>
+                                <field name="preferred_vendor" readonly="1" widget="boolean"/>
+                                <button name="action_select_this_supplier" 
+                                        string="Select" 
+                                        type="object" 
+                                        class="btn-primary btn-sm"
+                                        icon="fa-check"/>
+                            </tree>
+                        </field>
+                    </group>
+                    
+                    <group>
+                        <field name="selected_supplier_id" 
+                               required="1"
+                               domain="[('id', 'in', available_supplier_partner_ids)]"
+                               options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    
+                    <div class="alert alert-info" role="alert">
+                        <strong>Note:</strong> The selected supplier will be used for all products in this deal. 
+                        You cannot mix products from different suppliers in a single deal.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_confirm_supplier" 
+                            string="Confirm Supplier" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="Cancel" 
+                            class="btn-secondary" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+</odoo>

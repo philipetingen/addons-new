@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- Tree View -->
+        <record id="view_dm_qc_type_tree" model="ir.ui.view">
+            <field name="name">dm.qc_type.tree</field>
+            <field name="model">dm.qc_type</field>
+            <field name="arch" type="xml">
+                <tree string="QC Check Types">
+                    <field name="sequence" widget="handle"/>
+                    <field name="code"/>
+                    <field name="name"/>
+                    <field name="category"/>
+                    <field name="check_point"/>
+                    <field name="is_critical"/>
+                    <field name="requires_photo" optional="hide"/>
+                    <field name="requires_certificate" optional="hide"/>
+                    <field name="active" invisible="1"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Form View -->
+        <record id="view_dm_qc_type_form" model="ir.ui.view">
+            <field name="name">dm.qc_type.form</field>
+            <field name="model">dm.qc_type</field>
+            <field name="arch" type="xml">
+                <form string="QC Check Type">
+                    <sheet>
+                        <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active == True"/>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="QC Check Name"/>
+                            </h1>
+                            <h2>
+                                <field name="code" placeholder="Check Code"/>
+                            </h2>
+                        </div>
+                        
+                        <group>
+                            <group string="Classification">
+                                <field name="category"/>
+                                <field name="check_point"/>
+                                <field name="sequence"/>
+                                <field name="is_critical"/>
+                            </group>
+                            <group string="Documentation">
+                                <field name="requires_photo"/>
+                                <field name="requires_certificate"/>
+                                <field name="active"/>
+                            </group>
+                        </group>
+                        
+                        <notebook>
+                            <page string="Check Method">
+                                <group>
+                                    <field name="check_method" nolabel="1" placeholder="Describe how to perform this check..."/>
+                                </group>
+                            </page>
+                            <page string="Acceptance Criteria">
+                                <group>
+                                    <field name="acceptance_criteria" nolabel="1" placeholder="Define criteria for passing this check..."/>
+                                </group>
+                            </page>
+                            <page string="Sampling" invisible="requires_sampling == False">
+                                <group>
+                                    <group>
+                                        <field name="requires_sampling"/>
+                                        <field name="sample_size" required="requires_sampling == True"/>
+                                    </group>
+                                    <group>
+                                        <field name="sample_method" placeholder="Describe sampling method..."/>
+                                    </group>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- ================================================================== -->
+        <!-- PRODUCTION RUN VIEW EXTENSION - Phase 1 + Phase 2 + Phase 3A      -->
+        <!-- Adds capacity features to dm.production.run views                  -->
+        <!-- ================================================================== -->
+        
+        <!-- Phase 3A: Add capacity stat button to button box -->
+        <record id="view_dm_production_run_form_capacity_stat_button" model="ir.ui.view">
+            <field name="name">dm.production.run.form.capacity.stat.button</field>
+            <field name="model">dm.production.run</field>
+            <field name="inherit_id" ref="dm_production.view_dm_production_run_form"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add capacity utilization stat button after last button in button_box -->
+                <xpath expr="//div[@class='oe_button_box']" position="inside">
+                    <button name="action_check_capacity" 
+                            type="object" 
+                            class="oe_stat_button" 
+                            icon="fa-tachometer" 
+                            invisible="not vendor_capacity_id">
+                        <div class="o_field_widget o_stat_info">
+                            <span class="o_stat_value">
+                                <field name="month_utilization_percent" widget="float" options="{'precision': 0}"/>%
+                            </span>
+                            <span class="o_stat_text">Capacity</span>
+                        </div>
+                    </button>
+                </xpath>
+                
+            </field>
+        </record>
+        
+        <!-- Phase 3A: Add capacity overview banner and warnings -->
+        <record id="view_dm_production_run_form_capacity_banner" model="ir.ui.view">
+            <field name="name">dm.production.run.form.capacity.banner</field>
+            <field name="model">dm.production.run</field>
+            <field name="inherit_id" ref="dm_production.view_dm_production_run_form"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add capacity banner before notebook -->
+                <xpath expr="//notebook" position="before">
+                    
+                    <!-- Capacity Overview Banner -->
+                    <div class="alert alert-info" role="alert" invisible="not month_capacity_teu or month_capacity_teu == 0">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <strong>Capacity Status:</strong>
+                                <field name="run_total_teu" readonly="1" class="oe_inline"/> TEU allocated
+                                of <field name="month_capacity_teu" readonly="1" class="oe_inline"/> TEU capacity
+                                (<field name="month_utilization_percent" readonly="1" class="oe_inline"/>% utilized)
+                            </div>
+                            <div class="col-md-4">
+                                <field name="month_utilization_percent" widget="progressbar" readonly="1" nolabel="1"/>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Warning for near capacity -->
+                    <div class="alert alert-warning" role="alert" invisible="capacity_status != 'warning'">
+                        <i class="fa fa-exclamation-triangle"/> 
+                        <strong>Near Capacity Limit:</strong>
+                        This production run is using <field name="month_utilization_percent" readonly="1" nolabel="1" class="oe_inline"/>% 
+                        of vendor capacity. Consider splitting to avoid over-allocation.
+                    </div>
+                    
+                    <!-- Error for over capacity -->
+                    <div class="alert alert-danger" role="alert" invisible="capacity_status != 'over'">
+                        <i class="fa fa-times-circle"/> 
+                        <strong>Over Capacity:</strong>
+                        This production run exceeds vendor capacity.
+                        Remove deals or increase capacity before confirming.
+                    </div>
+                    
+                </xpath>
+                
+            </field>
+        </record>
+        
+        <!-- Phase 1: Add capacity button and fields to production run form -->
+        <record id="view_dm_production_run_form_capacity" model="ir.ui.view">
+            <field name="name">dm.production.run.form.capacity</field>
+            <field name="model">dm.production.run</field>
+            <field name="inherit_id" ref="dm_production.view_dm_production_run_form"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add Check Capacity button in header -->
+                <button name="action_confirm" position="before">
+                    <button name="action_check_capacity"
+                            string="Check Capacity"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ['draft', 'confirmed']"
+                            help="Check if this production run fits within vendor capacity"/>
+                </button>
+                
+                <!-- Add capacity fields after company_id -->
+                <field name="company_id" position="after">
+                    <field name="vendor_capacity_id" 
+                           readonly="1"
+                           options="{'no_create': True, 'no_open': True}"/>
+                    <field name="capacity_status" 
+                           widget="badge"
+                           decoration-success="capacity_status == 'ok'"
+                           decoration-warning="capacity_status == 'warning'"
+                           decoration-danger="capacity_status == 'over'"
+                           decoration-muted="capacity_status == 'no_capacity'"/>
+                    <field name="capacity_violations" 
+                           readonly="1"
+                           invisible="not capacity_violations"
+                           class="text-warning"/>
+                    <!-- Phase 2: Add run TEU -->
+                    <field name="run_total_teu" readonly="1"/>
+                </field>
+                
+                <!-- Phase 2: Add Capacity Analysis tab -->
+                <xpath expr="//notebook" position="inside">
+                    <page string="Capacity Analysis" 
+                          name="capacity_analysis"
+                          invisible="not vendor_capacity_id">
+                        
+                        <!-- Month Overview -->
+                        <group string="Month Capacity Overview">
+                            <group>
+                                <label for="month_total_teu" string="Month Usage"/>
+                                <div class="o_row">
+                                    <field name="month_total_teu" readonly="1" class="oe_inline"/>
+                                    <span class="oe_inline"> / </span>
+                                    <field name="month_capacity_teu" readonly="1" class="oe_inline"/>
+                                    <span class="oe_inline"> TEU</span>
+                                </div>
+                                
+                                <field name="month_utilization_percent" 
+                                       widget="progressbar"
+                                       readonly="1"
+                                       decoration-success="month_utilization_percent &lt; 80"
+                                       decoration-warning="month_utilization_percent &gt;= 80 and month_utilization_percent &lt; 100"
+                                       decoration-danger="month_utilization_percent &gt;= 100"/>
+                            </group>
+                            <group>
+                                <field name="month_available_teu" 
+                                       readonly="1"
+                                       decoration-success="month_available_teu &gt;= 0"
+                                       decoration-danger="month_available_teu &lt; 0"/>
+                            </group>
+                        </group>
+                        
+                        <!-- Capacity Status Details -->
+                        <group string="Status Details" invisible="not capacity_violations">
+                            <field name="capacity_violations" 
+                                   nolabel="1" 
+                                   readonly="1"
+                                   widget="text"
+                                   options="{'no_resize': True}"/>
+                        </group>
+                        
+                        <!-- Action Buttons -->
+                        <div class="oe_button_box" style="margin-top: 20px;">
+                            <button name="action_check_capacity" 
+                                    type="object" 
+                                    string="View Detailed Report" 
+                                    class="btn-primary"
+                                    icon="fa-pie-chart"/>
+                        </div>
+                        
+                    </page>
+                </xpath>
+                
+            </field>
+        </record>
+        
+        <!-- Phase 1+2: Add capacity columns to production run tree -->
+        <record id="view_dm_production_run_tree_capacity" model="ir.ui.view">
+            <field name="name">dm.production.run.tree.capacity</field>
+            <field name="model">dm.production.run</field>
+            <field name="inherit_id" ref="dm_production.view_dm_production_run_tree"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add capacity columns before state -->
+                <field name="state" position="before">
+                    <!-- Phase 2: TEU column -->
+                    <field name="run_total_teu" 
+                           string="TEU" 
+                           optional="show"
+                           sum="Total TEU"/>
+                    <!-- Phase 2: Month utilization -->
+                    <field name="month_utilization_percent" 
+                           string="Month %" 
+                           optional="hide"
+                           widget="progressbar"
+                           decoration-success="month_utilization_percent &lt; 80"
+                           decoration-warning="month_utilization_percent &gt;= 80 and month_utilization_percent &lt; 100"
+                           decoration-danger="month_utilization_percent &gt;= 100"/>
+                    <!-- Phase 1+2: Capacity status -->
+                    <field name="capacity_status" 
+                           optional="show"
+                           widget="badge"
+                           decoration-success="capacity_status == 'ok'"
+                           decoration-warning="capacity_status == 'warning'"
+                           decoration-danger="capacity_status == 'over'"
+                           decoration-muted="capacity_status == 'no_capacity'"/>
+                </field>
+                
+            </field>
+        </record>
+        
+        <!-- Phase 2: Search view enhancement (adds capacity filters) -->
+        <record id="view_dm_production_run_search_capacity" model="ir.ui.view">
+            <field name="name">dm.production.run.search.capacity</field>
+            <field name="model">dm.production.run</field>
+            <field name="inherit_id" ref="dm_production.view_dm_production_run_search"/>
+            <field name="arch" type="xml">
+                
+                <!-- Add capacity filters after existing filters -->
+                <filter name="filter_active" position="after">
+                    <separator/>
+                    <filter string="Within Capacity" name="capacity_ok" domain="[('capacity_status', '=', 'ok')]"/>
+                    <filter string="Near Capacity" name="capacity_warning" domain="[('capacity_status', '=', 'warning')]"/>
+                    <filter string="Over Capacity" name="capacity_over" domain="[('capacity_status', '=', 'over')]"/>
+                    <filter string="No Capacity" name="no_capacity" domain="[('capacity_status', '=', 'no_capacity')]"/>
+                </filter>
+                
+                <!-- Add capacity group by -->
+                <filter name="group_prod_month" position="after">
+                    <filter string="Capacity Status" name="group_by_capacity_status" context="{'group_by': 'capacity_status'}"/>
+                </filter>
+                
+            </field>
+        </record>
+        
+        <!-- Phase 2: Graph view -->
+        <record id="view_dm_production_run_graph_capacity" model="ir.ui.view">
+            <field name="name">dm.production.run.graph.capacity</field>
+            <field name="model">dm.production.run</field>
+            <field name="arch" type="xml">
+                <graph string="Production Run Capacity Analysis" type="bar">
+                    <field name="rts_date" interval="month"/>
+                    <field name="run_total_teu" type="measure"/>
+                </graph>
+            </field>
+        </record>
+        
+        <!-- Phase 2: Pivot view -->
+        <record id="view_dm_production_run_pivot_capacity" model="ir.ui.view">
+            <field name="name">dm.production.run.pivot.capacity</field>
+            <field name="model">dm.production.run</field>
+            <field name="arch" type="xml">
+                <pivot string="Production Run Capacity Pivot">
+                    <field name="supplier_id" type="row"/>
+                    <field name="rts_date" interval="month" type="col"/>
+                    <field name="run_total_teu" type="measure"/>
+                    <field name="month_utilization_percent" type="measure"/>
+                </pivot>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

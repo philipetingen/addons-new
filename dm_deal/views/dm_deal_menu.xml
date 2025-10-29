@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Reference the main DonnaMello menu from dm_master_data -->
+    
+	<!-- ========================================== -->
+	<!-- MAIN DEALS SECTION                         -->
+	<!-- ========================================== -->
+
+	<!-- Deals Section under main DonnaMello menu -->
+	<menuitem id="menu_dm_deal_section"
+			  name="Sales"
+			  parent="dm_master_data.menu_dm_root"
+			  sequence="20"/>
+
+	<!-- ========================================== -->
+	<!-- DEAL MANAGEMENT MENUS                      -->
+	<!-- ========================================== -->
+
+	<!-- All Deals - NOW FIRST so it becomes default -->
+	<menuitem id="menu_dm_deal"
+			  name="Deals"
+			  parent="menu_dm_deal_section"
+			  action="action_dm_deal"
+			  sequence="10"/>
+
+	<!-- Wizard Path - Guided Deal Creation -->
+	<menuitem id="menu_deal_creation_wizard"
+			  name="Create Deal (Wizard)"
+			  parent="menu_dm_deal_section"
+			  action="action_deal_creation_wizard"
+			  sequence="15"
+			  groups="group_dm_deal_user"/>
+
+	<!-- Quick Create Path - Direct Entry -->
+	<menuitem id="menu_deal_quick_create"
+			  name="Create Deal (Quick)"
+			  parent="menu_dm_deal_section"
+			  action="action_dm_deal"
+			  sequence="20"
+			  groups="group_dm_deal_user"/>
+
+	<!-- Allocation Board -->
+	<menuitem id="menu_dm_deal_allocation_board"
+			  name="Allocation Board"
+			  parent="menu_dm_deal_section"
+			  action="action_dm_deal_allocation_board"
+			  sequence="30"/>
+    
+    <!-- ========================================== -->
+    <!-- CONFIGURATION MENUS                        -->
+    <!-- ========================================== -->
+    
+    <!-- Deal Templates under Configuration -->
+    <menuitem id="menu_dm_deal_template"
+              name="Deal Templates"
+              parent="dm_master_data.menu_dm_configuration"
+              action="action_dm_deal_template"
+              sequence="40"
+              groups="group_dm_deal_manager"/>
+    
+    <!-- Allocations Menu Item  -->
+    <menuitem id="menu_dm_deal_allocation_board"
+              name="Allocation Board"
+              parent="dm_deal.menu_dm_deal_section"
+              action="action_dm_deal_allocation_board"
+              sequence="15"/>
+    
+	
+	
+</odoo>

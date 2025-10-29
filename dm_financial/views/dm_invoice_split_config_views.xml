@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Tree View -->
+    <record id="view_dm_invoice_split_config_tree" model="ir.ui.view">
+        <field name="name">dm.invoice.split.config.tree</field>
+        <field name="model">dm.invoice.split.config</field>
+        <field name="arch" type="xml">
+            <tree string="Invoice Split Configurations" 
+                  decoration-success="state == 'invoiced'"
+                  decoration-warning="state == 'ready'"
+                  decoration-muted="state == 'cancelled'">
+                <field name="deal_id"/>
+                <field name="customer_po_number"/>
+                <field name="customer_id"/>
+                <field name="split_type"/>
+                <field name="product_percentage" widget="percentage"/>
+                <field name="service_percentage" widget="percentage"/>
+                <field name="include_freight"/>
+                <field name="include_insurance"/>
+                <field name="estimated_total_amount" widget="monetary"/>
+                <field name="loading_confirmed" widget="boolean_toggle"/>
+                <field name="state" widget="badge"/>
+                <field name="currency_id" invisible="1"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Form View -->
+    <record id="view_dm_invoice_split_config_form" model="ir.ui.view">
+        <field name="name">dm.invoice.split.config.form</field>
+        <field name="model">dm.invoice.split.config</field>
+        <field name="arch" type="xml">
+            <form string="Invoice Split Configuration">
+                <header>
+                    <button name="action_confirm" type="object" string="Confirm" 
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_mark_ready" type="object" string="Mark Ready" 
+                            class="oe_highlight" invisible="state != 'confirmed' or not loading_confirmed"/>
+                    <button name="action_generate_invoices" type="object" string="Generate Invoices"
+                            class="oe_highlight" invisible="state != 'ready'"/>
+                    <button name="action_cancel" type="object" string="Cancel"
+                            invisible="state in ['invoiced', 'cancelled']"/>
+                    <button name="action_reset_draft" type="object" string="Reset to Draft"
+                            invisible="state not in ['cancelled']"/>
+                    <field name="state" widget="statusbar" 
+                           statusbar_visible="draft,confirmed,ready,invoiced"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Invoiced" bg_color="bg-success" 
+                            invisible="state != 'invoiced'"/>
+                    <widget name="web_ribbon" title="Cancelled" bg_color="bg-danger" 
+                            invisible="state != 'cancelled'"/>
+                    
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_product_invoice" type="object" 
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="not product_invoice_id">
+                            <span class="o_stat_text">Product Invoice</span>
+                        </button>
+                        <button name="action_view_service_invoice" type="object" 
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="not service_invoice_id">
+                            <span class="o_stat_text">Service Invoice</span>
+                        </button>
+                    </div>
+                    
+                    <div class="oe_title">
+                        <label for="deal_id" string="Deal"/>
+                        <h1>
+                            <field name="deal_id" readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                        </h1>
+                        <label for="customer_po_number" string="Customer PO#"/>
+                        <h2>
+                            <field name="customer_po_number" readonly="1"/>
+                        </h2>
+                    </div>
+                    
+                    <group>
+                        <group string="Split Configuration">
+                            <field name="split_type" readonly="state != 'draft'"/>
+                            <field name="product_percentage" 
+                                   invisible="split_type != 'custom'"
+                                   readonly="state != 'draft'"/>
+                            <field name="service_percentage" readonly="1" force_save="1"/>
+                            <field name="sale_incoterm_id" readonly="1"/>
+                        </group>
+                        <group string="Status">
+                            <field name="shipment_id" readonly="1"/>
+                            <field name="loading_confirmed" readonly="1"/>
+                            <field name="actual_goods_value" widget="monetary" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Freight &amp; Insurance (Added ON TOP of Service %)">
+                        <group>
+                            <field name="freight_management" readonly="1"/>
+                            <field name="include_freight" readonly="state != 'draft'"
+                                   invisible="freight_management == 'customer'"/>
+                            <field name="freight_amount" widget="monetary"
+                                   readonly="state == 'invoiced'"
+                                   invisible="not include_freight"
+                                   required="include_freight"/>
+                        </group>
+                        <group>
+                            <field name="include_insurance" readonly="state != 'draft'"/>
+                            <field name="insurance_amount" widget="monetary"
+                                   readonly="state == 'invoiced'"
+                                   invisible="not include_insurance"
+                                   required="include_insurance"/>
+                        </group>
+                    </group>
+                    
+                    <separator string="Invoice Preview"/>
+                    <group col="3">
+                        <group string="Product Invoice (Goods Only)">
+                            <field name="estimated_product_amount" widget="monetary" readonly="1"/>
+                            <field name="product_downpayment" widget="monetary" readonly="1"/>
+                            <label for="estimated_product_amount" string="Amount Due"/>
+                            <div class="o_row">
+                                <strong>
+                                    <field name="estimated_product_amount" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                </strong>
+                            </div>
+                        </group>
+                        <group string="Service Invoice (Service % + Charges)">
+                            <label for="estimated_service_amount" string="Service Base"/>
+								<div class="o_row text-muted">
+									<field name="service_percentage" nolabel="1" readonly="1"/>
+									<span>% of goods value</span>
+								</div>
+                            <label for="freight_amount" string="+ Freight" 
+                                   invisible="not include_freight"/>
+                            <field name="freight_amount" nolabel="1" readonly="1" 
+                                   invisible="not include_freight"/>
+                            <label for="insurance_amount" string="+ Insurance" 
+                                   invisible="not include_insurance"/>
+                            <field name="insurance_amount" nolabel="1" readonly="1" 
+                                   invisible="not include_insurance"/>
+                            <separator/>
+                            <field name="estimated_service_amount" widget="monetary" readonly="1"/>
+                            <field name="service_downpayment" widget="monetary" readonly="1"/>
+                            <label for="estimated_service_amount" string="Amount Due"/>
+								<div class="o_row">
+									<strong>
+										<field name="estimated_service_amount" widget="monetary" readonly="1" force_save="1"/>
+										<span> (after DP: </span>
+										<field name="service_downpayment" widget="monetary" readonly="1" force_save="1"/>
+										<span>)</span>
+									</strong>
+								</div>
+                        </group>
+                        <group string="Total">
+                            <field name="estimated_total_amount" widget="monetary" readonly="1"/>
+                            <field name="downpayment_total" widget="monetary" readonly="1"/>
+                            <separator/>
+                            <label for="estimated_total_amount" string="Total Due"/>
+								<div class="o_row">
+									<strong>
+										<field name="estimated_total_amount" widget="monetary" readonly="1" force_save="1"/>
+										<span> (after DP: </span>
+										<field name="downpayment_total" widget="monetary" readonly="1" force_save="1"/>
+										<span>)</span>
+									</strong>
+								</div>
+                        </group>
+                    </group>
+                    
+                    <group string="Generated Invoices" invisible="state != 'invoiced'">
+                        <field name="product_invoice_id" readonly="1"/>
+                        <field name="service_invoice_id" readonly="1"/>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Search View -->
+    <record id="view_dm_invoice_split_config_search" model="ir.ui.view">
+        <field name="name">dm.invoice.split.config.search</field>
+        <field name="model">dm.invoice.split.config</field>
+        <field name="arch" type="xml">
+            <search string="Search Invoice Split Configurations">
+                <field name="deal_id"/>
+                <field name="customer_id"/>
+                <field name="customer_po_number"/>
+                <separator/>
+                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="confirmed" string="Confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter name="ready" string="Ready" domain="[('state', '=', 'ready')]"/>
+                <filter name="invoiced" string="Invoiced" domain="[('state', '=', 'invoiced')]"/>
+                <separator/>
+                <filter name="loading_confirmed" string="Loading Confirmed" 
+                        domain="[('loading_confirmed', '=', True)]"/>
+                <filter name="includes_freight" string="Includes Freight" 
+                        domain="[('include_freight', '=', True)]"/>
+                <filter name="includes_insurance" string="Includes Insurance" 
+                        domain="[('include_insurance', '=', True)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                    <filter name="group_split_type" string="Split Type" context="{'group_by': 'split_type'}"/>
+                    <filter name="group_customer" string="Customer" context="{'group_by': 'customer_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Action -->
+    <record id="action_dm_invoice_split_config" model="ir.actions.act_window">
+        <field name="name">Invoice Split Configurations</field>
+        <field name="res_model">dm.invoice.split.config</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_dm_invoice_split_config_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Configure Invoice Split
+            </p>
+            <p>
+                Invoice split configurations manage the 80/20 split between product and service invoices.
+                Service invoice includes the service percentage of goods value PLUS freight and insurance charges.
+            </p>
+        </field>
+    </record>
+    
+</odoo>

@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dm_state_history_user,dm.state.history.user,model_dm_state_history,group_dm_user,1,0,0,0
+access_dm_state_history_manager,dm.state.history.manager,model_dm_state_history,group_dm_manager,1,1,1,0
+access_dm_state_history_admin,dm.state.history.admin,model_dm_state_history,group_dm_admin,1,1,1,1

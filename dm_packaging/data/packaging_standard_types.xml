@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Standard Packaging Types -->
+        <record id="standard_type_unit" model="packaging.standard.type">
+            <field name="name">Unit</field>
+            <field name="code">UNIT</field>
+            <field name="category">unit</field>
+            <field name="sequence">10</field>
+            <field name="description">Individual product unit</field>
+        </record>
+        
+        <record id="standard_type_inner" model="packaging.standard.type">
+            <field name="name">Inner Pack</field>
+            <field name="code">INNER</field>
+            <field name="category">inner</field>
+            <field name="sequence">20</field>
+            <field name="description">Inner packaging within a case</field>
+        </record>
+        
+        <record id="standard_type_carton" model="packaging.standard.type">
+            <field name="name">Carton</field>
+            <field name="code">CARTON</field>
+            <field name="category">case</field>
+            <field name="sequence">30</field>
+            <field name="description">Standard carton or case</field>
+        </record>
+        
+        <record id="standard_type_pallet" model="packaging.standard.type">
+            <field name="name">Pallet</field>
+            <field name="code">PALLET</field>
+            <field name="category">pallet</field>
+            <field name="sequence">40</field>
+            <field name="description">Standard pallet</field>
+        </record>
+        
+        <record id="standard_type_us_pallet" model="packaging.standard.type">
+            <field name="name">US Pallet</field>
+            <field name="code">US_PALLET</field>
+            <field name="category">pallet</field>
+            <field name="sequence">41</field>
+            <field name="description">US standard pallet (48x40 inches)</field>
+        </record>
+        
+        <record id="standard_type_euro_pallet" model="packaging.standard.type">
+            <field name="name">Euro Pallet</field>
+            <field name="code">EURO_PALLET</field>
+            <field name="category">pallet</field>
+            <field name="sequence">42</field>
+            <field name="description">European standard pallet (120x80 cm)</field>
+        </record>
+        
+        <record id="standard_type_container" model="packaging.standard.type">
+            <field name="name">Container</field>
+            <field name="code">CONTAINER</field>
+            <field name="category">container</field>
+            <field name="is_shipping_container">True</field>
+            <field name="sequence">50</field>
+            <field name="description">Shipping container</field>
+        </record>
+    </data>
+</odoo>

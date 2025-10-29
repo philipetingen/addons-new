@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Packaging Standard Type Tree View -->
+    <record id="packaging_standard_type_tree_view" model="ir.ui.view">
+        <field name="name">packaging.standard.type.tree</field>
+        <field name="model">packaging.standard.type</field>
+        <field name="arch" type="xml">
+            <tree editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="category"/>
+                <field name="is_shipping_container"/>
+                <field name="packaging_count"/>
+                <field name="active"/>
+                <field name="description" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Packaging Standard Type Form View -->
+    <record id="packaging_standard_type_form_view" model="ir.ui.view">
+        <field name="name">packaging.standard.type.form</field>
+        <field name="model">packaging.standard.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger" 
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name" string="Standard Type"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Carton"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code" placeholder="e.g. CARTON"/>
+                            <field name="category"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="is_shipping_container"/>
+                            <field name="active"/>
+                            <field name="packaging_count"/>
+                        </group>
+                    </group>
+                    <group string="Description">
+                        <field name="description" nolabel="1" 
+                               placeholder="Detailed description of this packaging type..."/>
+                    </group>
+                    <group string="Packaging Using This Type" 
+                           invisible="not packaging_count">
+                        <field name="packaging_ids" nolabel="1" readonly="1">
+                            <tree>
+                                <field name="product_id"/>
+                                <field name="name"/>
+                                <field name="qty"/>
+                                <field name="barcode" optional="hide"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </tree>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Packaging Standard Type Search View -->
+    <record id="packaging_standard_type_search_view" model="ir.ui.view">
+        <field name="name">packaging.standard.type.search</field>
+        <field name="model">packaging.standard.type</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="category"/>
+                <separator/>
+                <filter name="shipping_containers" 
+                        string="Shipping Containers" 
+                        domain="[('is_shipping_container', '=', True)]"/>
+                <filter name="active" 
+                        string="Active" 
+                        domain="[('active', '=', True)]"/>
+                <filter name="inactive" 
+                        string="Archived" 
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_category" 
+                            string="Category" 
+                            context="{'group_by': 'category'}"/>
+                    <filter name="group_by_active" 
+                            string="Active" 
+                            context="{'group_by': 'active'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    <!-- Packaging Standard Type Action -->
+    <record id="packaging_standard_type_action" model="ir.actions.act_window">
+        <field name="name">Packaging Standard Types</field>
+        <field name="type">ir.actions.act_window</field>
+        <field name="res_model">packaging.standard.type</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="packaging_standard_type_search_view"/>
+        <field name="context">{'search_default_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new packaging standard type
+            </p>
+            <p>
+                Standard types help categorize packaging for reporting and integration.
+                Common types include CARTON, PALLET, CONTAINER, etc.
+            </p>
+        </field>
+    </record>
+</odoo>

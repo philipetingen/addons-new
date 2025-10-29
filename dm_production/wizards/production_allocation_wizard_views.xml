@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Production Allocation Wizard Form -->
+    <record id="view_production_allocation_wizard_form" model="ir.ui.view">
+        <field name="name">dm.production.allocation.wizard.form</field>
+        <field name="model">dm.production.allocation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Allocate to Production">
+                <group>
+                    <field name="deal_ids" widget="many2many_tags" readonly="1"/>
+                    <field name="create_new_pr"/>
+                </group>
+                
+                <group invisible="create_new_pr == False">
+                    <group string="New Production Run">
+                        <field name="supplier_id" required="create_new_pr == True"/>
+                        <field name="production_start_date"/>
+                        <field name="rts_date"/>
+                    </group>
+                </group>
+                
+                <group invisible="create_new_pr == True">
+                    <group string="Existing Production Run">
+                        <field name="production_run_id" required="create_new_pr == False"/>
+                    </group>
+                </group>
+                
+                <footer>
+                    <button name="action_allocate" string="Allocate" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+</odoo>

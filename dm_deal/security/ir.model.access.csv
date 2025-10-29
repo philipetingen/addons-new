@@ -1,0 +1,14 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dm_deal_template_user,dm.deal.template.user,model_dm_deal_template,group_dm_deal_user,1,0,0,0
+access_dm_deal_template_manager,dm.deal.template.manager,model_dm_deal_template,group_dm_deal_manager,1,1,1,1
+access_dm_deal_user,dm.deal.user,model_dm_deal,group_dm_deal_user,1,1,1,0
+access_dm_deal_manager,dm.deal.manager,model_dm_deal,group_dm_deal_manager,1,1,1,1
+access_dm_deal_line_user,dm.deal.line.user,model_dm_deal_line,group_dm_deal_user,1,1,1,1
+access_dm_deal_line_manager,dm.deal.line.manager,model_dm_deal_line,group_dm_deal_manager,1,1,1,1
+access_dm_deal_template_selection_wizard,access_dm_deal_template_selection_wizard,model_dm_deal_template_selection_wizard,base.group_user,1,1,1,0
+access_dm_deal_creation_wizard_user,dm.deal.creation.wizard user,model_dm_deal_creation_wizard,group_dm_deal_user,1,1,1,1
+access_dm_deal_creation_wizard_manager,dm.deal.creation.wizard manager,model_dm_deal_creation_wizard,group_dm_deal_manager,1,1,1,1
+access_dm_deal_creation_wizard_line_user,dm.deal.creation.wizard.line user,model_dm_deal_creation_wizard_line,group_dm_deal_user,1,1,1,1
+access_dm_deal_creation_wizard_line_manager,dm.deal.creation.wizard.line manager,model_dm_deal_creation_wizard_line,group_dm_deal_manager,1,1,1,1
+access_dm_allocation_user,dm.allocation user,model_dm_allocation,base.group_user,1,1,1,0
+access_dm_allocation_manager,dm.allocation manager,model_dm_allocation,base.group_system,1,1,1,1

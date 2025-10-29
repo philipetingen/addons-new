@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Invoice Generation Wizard Form View -->
+    <record id="view_dm_invoice_generation_wizard_form" model="ir.ui.view">
+        <field name="name">dm.invoice.generation.wizard.form</field>
+        <field name="model">dm.invoice.generation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generate Invoices from Shipment">
+                <group>
+                    <group string="Deal Information">
+                        <field name="deal_id" readonly="1"/>
+                        <field name="shipment_id" readonly="1"/>
+                        <field name="sale_incoterm_id" readonly="1"/>
+                        <field name="split_config_id" readonly="1" invisible="not split_config_id"/>
+                    </group>
+                    <group string="Invoice Settings">
+                        <field name="generate_split"/>
+                        <field name="invoice_date"/>
+                        <field name="payment_term_id" options="{'no_create': True}"/>
+                        <field name="create_draft"/>
+                    </group>
+                </group>
+                
+                <div class="alert alert-warning" role="alert" 
+                     invisible="not incoterm_validation_message">
+                    <field name="incoterm_validation_message" readonly="1" nolabel="1"/>
+                </div>
+                
+                <separator string="Actual Loaded Quantities"/>
+                <field name="line_ids" nolabel="1">
+                    <tree editable="bottom" create="0" delete="0">
+                        <field name="product_id" readonly="1"/>
+                        <field name="product_packaging_id" readonly="1" optional="hide"/>
+                        <field name="quantity"/>
+                        <field name="price_unit"/>
+                        <field name="subtotal" sum="Total Goods Value"/>
+                        <field name="deal_line_id" invisible="1"/>
+                        <field name="shipment_line_id" invisible="1"/>
+                    </tree>
+                </field>
+                
+                <group string="Invoice Preview" invisible="not line_ids">
+					<group string="Product Invoice" invisible="not generate_split">
+						<field name="product_amount" widget="monetary" string="Goods Value"/>
+						<field name="product_dp" widget="monetary" string="- Downpayment"/>
+						<field name="product_due" widget="monetary" string="= Amount Due"/>
+					</group>
+                    
+                    <group string="Service Invoice" invisible="not generate_split">
+                        <field name="service_base_amount" widget="monetary" string="Service Base"/>
+                        <field name="freight_amount" widget="monetary" string="+ Freight"
+                               readonly="split_config_id and split_config_id.state == 'invoiced'"
+                               required="sale_incoterm_id.code in ['CFR', 'CIF']"/>
+                        <field name="insurance_amount" widget="monetary" string="+ Insurance"
+                               readonly="split_config_id and split_config_id.state == 'invoiced'"
+                               required="sale_incoterm_id.code == 'CIF'"/>
+                        <separator/>
+                        <field name="service_amount" widget="monetary" string="Service Total"/>
+                        <field name="service_dp" widget="monetary" string="- Downpayment"/>
+                        <field name="service_due" widget="monetary" string="= Amount Due"/>
+                    </group>
+                    
+                    <group string="Single Invoice" invisible="generate_split">
+                        <field name="total_amount" widget="monetary" string="Invoice Total"/>
+                        <field name="total_downpayment" widget="monetary" string="- Downpayment"/>
+                        <field name="total_due" widget="monetary" string="= Amount Due"/>
+                    </group>
+                </group>
+                
+                <field name="currency_id" invisible="1"/>
+                <field name="has_loaded_quantities" invisible="1"/>
+                
+                <footer>
+                    <button name="action_generate" type="object" 
+                            string="Generate Invoices" class="btn-primary"
+                            invisible="not has_loaded_quantities"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Action for Invoice Generation Wizard -->
+    <record id="action_dm_invoice_generation_wizard" model="ir.actions.act_window">
+        <field name="name">Generate Invoices</field>
+        <field name="res_model">dm.invoice.generation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">form</field>
+    </record>
+    
+</odoo>

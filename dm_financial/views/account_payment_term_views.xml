@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Inherit Account Payment Term Form View -->
+    <record id="view_account_payment_term_form_inherit" model="ir.ui.view">
+        <field name="name">account.payment.term.form.inherit.dm</field>
+        <field name="model">account.payment.term</field>
+        <field name="inherit_id" ref="account.view_payment_term_form"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add payment structure display after name -->
+            <field name="name" position="after">
+                <field name="payment_structure_display" readonly="1" invisible="line_ids == []"/>
+            </field>
+            
+            <!-- Add CAD configuration fields before line_ids -->
+            <field name="line_ids" position="before">
+                
+                <!-- CAD Feature Toggles -->
+                <group string="DonnaMello Features">
+                    <group>
+                        <field name="is_cad_compliant" string="CAD Compliant"/>
+                        <field name="use_milestone_payments" string="Use Milestone Payments"/>
+                    </group>
+                    <group>
+                        <field name="usage_context" string="Usage Context"/>
+                        <field name="standard_configuration" 
+                               string="Quick Setup"
+                               invisible="use_milestone_payments == False"/>
+                    </group>
+                </group>
+                
+                <!-- CAD Configuration Details -->
+                <group string="CAD Configuration" invisible="is_cad_compliant == False">
+                    <group>
+                        <field name="cad_term_type"/>
+                        <field name="max_payment_days"/>
+                    </group>
+                    <group>
+                        <field name="requires_downpayment" readonly="1"/>
+                        <field name="downpayment_percentage" 
+                               widget="percentage"
+                               readonly="1" 
+                               invisible="requires_downpayment == False"/>
+                    </group>
+                </group>
+                
+                <!-- Compliance Notes -->
+                <group invisible="is_cad_compliant == False">
+                    <field name="compliance_notes" 
+                           nolabel="1"
+                           placeholder="Enter CAD compliance requirements or notes..."/>
+                </group>
+                
+            </field>
+            
+            <!-- Enhance payment term lines tree -->
+            <xpath expr="//field[@name='line_ids']/tree/field[@name='nb_days']" position="before">
+                <field name="sequence" widget="handle"/>
+                <field name="milestone_mode" optional="show"/>
+                <field name="milestone_type_id" 
+                       invisible="milestone_mode != 'milestone'" 
+                       required="milestone_mode == 'milestone'"
+                       domain="[('is_payment_trigger', '=', True)]"
+                       optional="show"/>
+                <field name="milestone_timing" invisible="milestone_mode != 'milestone'" optional="show"/>
+                <field name="milestone_days" invisible="milestone_mode != 'milestone'" optional="show"/>
+                <field name="is_downpayment" string="DP" widget="boolean_toggle" optional="show"/>
+            </xpath>
+            
+            <xpath expr="//field[@name='line_ids']/tree/field[@name='nb_days']" position="after">
+                <field name="requires_bol_release" string="Req. BOL" widget="boolean_toggle" optional="hide"/>
+                <field name="payment_context" optional="hide"/>
+                <field name="milestone_display" optional="show"/>
+            </xpath>
+            
+        </field>
+    </record>
+    
+    <!-- Rest of the views remain the same -->
+    <record id="view_account_payment_term_tree_inherit" model="ir.ui.view">
+        <field name="name">account.payment.term.tree.inherit.dm</field>
+        <field name="model">account.payment.term</field>
+        <field name="inherit_id" ref="account.view_payment_term_tree"/>
+        <field name="arch" type="xml">
+            <field name="name" position="after">
+                <field name="payment_structure_display" optional="show"/>
+                <field name="is_cad_compliant" widget="boolean_toggle" optional="show"/>
+                <field name="use_milestone_payments" widget="boolean_toggle" optional="show"/>
+                <field name="usage_context" optional="hide"/>
+            </field>
+        </field>
+    </record>
+    
+    <record id="view_account_payment_term_search_inherit" model="ir.ui.view">
+        <field name="name">account.payment.term.search.inherit.dm</field>
+        <field name="model">account.payment.term</field>
+        <field name="inherit_id" ref="account.view_payment_term_search"/>
+        <field name="arch" type="xml">
+            <search position="inside">
+                <separator/>
+                <filter name="cad_compliant" string="CAD Compliant" 
+                        domain="[('is_cad_compliant', '=', True)]"/>
+                <filter name="milestone_based" string="Milestone Based" 
+                        domain="[('use_milestone_payments', '=', True)]"/>
+                <filter name="has_downpayment" string="Has Downpayment" 
+                        domain="[('requires_downpayment', '=', True)]"/>
+                <separator/>
+                <filter name="sales_terms" string="Sales Terms" 
+                        domain="[('usage_context', 'in', ['sales', 'both'])]"/>
+                <filter name="purchase_terms" string="Purchase Terms" 
+                        domain="[('usage_context', 'in', ['purchase', 'both'])]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter name="group_cad_type" string="CAD Type" 
+                            context="{'group_by': 'cad_term_type'}"/>
+                    <filter name="group_context" string="Usage Context" 
+                            context="{'group_by': 'usage_context'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+</odoo>

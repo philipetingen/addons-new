@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_shipment_allocation_wizard_form" model="ir.ui.view">
+        <field name="name">dm.shipment.allocation.wizard.form</field>
+        <field name="model">dm.shipment.allocation.wizard</field>
+        <field name="arch" type="xml">
+            <form><group><field name="deal_ids" widget="many2many_tags" readonly="1"/><field name="create_new_shipment"/></group><group invisible="create_new_shipment == False"><field name="loading_port_id" required="create_new_shipment"/><field name="discharge_port_id" required="create_new_shipment"/><field name="etd"/><field name="eta"/></group><group invisible="create_new_shipment == True"><field name="shipment_id"/></group><footer><button name="action_allocate" string="Allocate" type="object" class="btn-primary"/><button string="Cancel" special="cancel"/></footer></form>
+        </field>
+    </record>
+</odoo>

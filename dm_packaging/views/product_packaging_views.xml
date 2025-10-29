@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Product Packaging Tree View -->
+    <record id="view_product_packaging_tree_dm" model="ir.ui.view">
+        <field name="name">product.packaging.tree.dm</field>
+        <field name="model">product.packaging</field>
+        <field name="inherit_id" ref="product.product_packaging_tree_view"/>
+        <field name="arch" type="xml">
+            <!-- Add new fields to tree view -->
+            <field name="qty" position="after">
+				<field name="packaging_length" optional="show" string="L (cm)"/>
+				<field name="packaging_width" optional="show" string="W (cm)"/>
+				<field name="packaging_height" optional="show" string="H (cm)"/>
+				<field name="packaging_volume_m3" optional="show" string="Vol (m³)"/>
+				<field name="parent_package_id" optional="show"/>
+				<field name="total_product_qty" optional="show"/>
+				<field name="packaging_net_weight" optional="show" string="Net Weight (kg)"/>
+				<field name="packages_per_pallet" optional="hide"/>
+				<field name="uom_id" optional="hide" string="Package UoM"/>
+            </field>
+            
+            <!-- Add standard type field -->
+            <field name="name" position="after">
+                <field name="standard_type_id" optional="show"/>
+            </field>
+            
+            <!-- Make barcode editable -->
+            <field name="barcode" position="attributes">
+                <attribute name="optional">show</attribute>
+            </field>
+        </field>
+    </record>
+
+    <!-- Product Packaging Form View -->
+    <record id="view_product_packaging_form_dm" model="ir.ui.view">
+        <field name="name">product.packaging.form.dm</field>
+        <field name="model">product.packaging</field>
+        <field name="inherit_id" ref="product.product_packaging_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Add to sheet -->
+            <xpath expr="//sheet" position="inside">
+                <!-- Hidden fields for visibility conditions -->
+                <field name="package_uom_type" invisible="1"/>
+                <field name="is_pallet" invisible="1"/>
+                <field name="stackable" invisible="1"/>
+                <field name="auto_calculate_volume" invisible="1"/>
+                <field name="auto_calculate_net_weight" invisible="1"/>
+                <field name="auto_calculate_gross_weight" invisible="1"/>
+                
+                <!-- Hierarchy group -->
+                <group string="Packaging Hierarchy">
+                    <group>
+                        <field name="standard_type_id"/>
+                        <field name="package_uom_type"/>
+                        <field name="parent_package_id" 
+                               domain="[('product_id', '=', product_id), ('id', '!=', id)]"
+                               context="{'default_product_id': product_id}"
+                               options="{'no_create': True}"
+                               invisible="package_uom_type != 'package'"/>
+                        <field name="uom_id" readonly="1" string="Auto-Created UoM"/>
+                    </group>
+                    <group>
+                        <field name="qty" string="Contains Qty"/>
+                        <field name="effective_unit_name" readonly="1"/>
+                        <field name="total_product_qty" readonly="1" string="Total Units (Through Hierarchy)"/>
+                    </group>
+                </group>
+                
+                <!-- Dimensions & Capacity -->
+                <group string="Dimensions &amp; Capacity">
+                    <group string="Physical Dimensions">
+                        <field name="packaging_length" widget="float" digits="[16,2]"/>
+                        <field name="packaging_width" widget="float" digits="[16,2]"/>
+                        <field name="packaging_height" widget="float" digits="[16,2]"/>
+                        <field name="auto_calculate_volume"/>
+                        <field name="packaging_volume_m3" readonly="auto_calculate_volume == True"/>
+                    </group>
+                    <group string="Weight">
+                        <field name="packaging_weight" string="Package Weight (kg)" widget="float" digits="[16,3]"/>
+                        <field name="auto_calculate_net_weight"/>
+                        <field name="packaging_net_weight" string="Net Weight (kg)" readonly="auto_calculate_net_weight == True" widget="float" digits="[16,3]"/>
+                        <field name="auto_calculate_gross_weight"/>
+                        <field name="packaging_gross_weight" string="Gross Weight (kg)" readonly="auto_calculate_gross_weight == True" widget="float" digits="[16,3]"/>
+                    </group>
+                </group>
+                
+                <!-- Pallet & Stacking Configuration -->
+                <group string="Pallet &amp; Stacking Configuration">
+                    <group string="Pallet Configuration">
+                        <field name="is_pallet"/>
+                        <field name="packages_per_pallet" invisible="is_pallet == False"/>
+                        <field name="layers_per_pallet" invisible="is_pallet == False"/>
+                    </group>
+                    <group string="Stacking">
+                        <field name="stackable"/>
+                        <field name="max_stacking" invisible="stackable == False"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Product Product Form View Extensions -->
+    <!-- MINIMAL FIX: Just add context and update default package type -->
+    <record id="view_product_form_packaging_dm" model="ir.ui.view">
+        <field name="name">product.product.form.packaging.dm</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Set context with default package type -->
+            <field name="packaging_ids" position="attributes">
+                <attribute name="context">{
+                    'default_product_id': id,
+                    'default_package_uom_type': 'product'
+                }</attribute>
+            </field>
+        </field>
+    </record>
+
+    <!-- Packaging Kanban View -->
+    <record id="view_product_packaging_kanban" model="ir.ui.view">
+        <field name="name">product.packaging.kanban</field>
+        <field name="model">product.packaging</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" sample="1">
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="standard_type_id"/>
+                <field name="qty"/>
+                <field name="total_product_qty"/>
+                <field name="parent_package_id"/>
+                <field name="effective_unit_name"/>
+                <field name="packaging_net_weight"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="name"/>
+                                    </strong>
+                                    <div class="o_kanban_record_subtitle">
+                                        <field name="product_id"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div>
+                                    <strong>Type: </strong><field name="standard_type_id"/>
+                                </div>
+                                <div>
+                                    <strong>Contains: </strong>
+                                    <field name="qty"/> <field name="effective_unit_name"/>
+                                </div>
+                                <div t-if="record.parent_package_id.raw_value">
+                                    <strong>Parent: </strong><field name="parent_package_id"/>
+                                </div>
+                                <div t-if="record.total_product_qty.raw_value != record.qty.raw_value">
+                                    <strong>Total Units: </strong><field name="total_product_qty"/>
+                                </div>
+                                <div t-if="record.packaging_net_weight.raw_value">
+                                    <strong>Net Weight: </strong><field name="packaging_net_weight"/> kg
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View for Packaging -->
+    <record id="view_product_packaging_search" model="ir.ui.view">
+        <field name="name">product.packaging.search</field>
+        <field name="model">product.packaging</field>
+        <field name="arch" type="xml">
+            <search string="Product Packaging">
+                <field name="name" string="Packaging" filter_domain="['|', ('name', 'ilike', self), ('barcode', 'ilike', self)]"/>
+                <field name="product_id"/>
+                <field name="standard_type_id"/>
+                <separator/>
+                <filter string="Has Parent" name="has_parent" domain="[('parent_package_id', '!=', False)]"/>
+                <filter string="Top Level" name="top_level" domain="[('parent_package_id', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Product" name="groupby_product" context="{'group_by': 'product_id'}"/>
+                    <filter string="Type" name="groupby_type" context="{'group_by': 'standard_type_id'}"/>
+                    <filter string="Parent Package" name="groupby_parent" context="{'group_by': 'parent_package_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

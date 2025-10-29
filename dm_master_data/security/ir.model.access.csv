@@ -1,0 +1,35 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dm_container_type_user,dm.container.type.user,model_dm_container_type,dm_base.group_dm_user,1,0,0,0
+access_dm_container_type_manager,dm.container.type.manager,model_dm_container_type,dm_base.group_dm_manager,1,1,1,1
+access_dm_port_user,dm.port.user,model_dm_port,dm_base.group_dm_user,1,0,0,0
+access_dm_port_manager,dm.port.manager,model_dm_port,dm_base.group_dm_manager,1,1,1,1
+access_dm_document_type_user,dm.document.type.user,model_dm_document_type,dm_base.group_dm_user,1,0,0,0
+access_dm_document_type_manager,dm.document.type.manager,model_dm_document_type,dm_base.group_dm_manager,1,1,1,1
+access_dm_qc_type_user,dm.qc_type.user,model_dm_qc_type,dm_base.group_dm_user,1,0,0,0
+access_dm_qc_type_manager,dm.qc_type.manager,model_dm_qc_type,dm_base.group_dm_manager,1,1,1,1
+access_dm_product_compatibility_user,dm.product.compatibility.user,model_dm_product_compatibility,dm_base.group_dm_user,1,0,0,0
+access_dm_product_compatibility_manager,dm.product.compatibility.manager,model_dm_product_compatibility,dm_base.group_dm_manager,1,1,1,1
+access_dm_collection_user,dm.collection.user,model_dm_collection,dm_base.group_dm_user,1,0,0,0
+access_dm_collection_manager,dm.collection.manager,model_dm_collection,dm_base.group_dm_manager,1,1,1,1
+access_dm_package_type_user,dm.package.type.user,model_dm_package_type,dm_base.group_dm_user,1,0,0,0
+access_dm_package_type_manager,dm.package.type.manager,model_dm_package_type,dm_base.group_dm_manager,1,1,1,1
+access_dm_individual_packing_type_user,dm.individual.packing.type.user,model_dm_individual_packing_type,dm_base.group_dm_user,1,0,0,0
+access_dm_individual_packing_type_manager,dm.individual.packing.type.manager,model_dm_individual_packing_type,dm_base.group_dm_manager,1,1,1,1
+access_dm_texture_user,dm.texture.user,model_dm_texture,dm_base.group_dm_user,1,0,0,0
+access_dm_texture_manager,dm.texture.manager,model_dm_texture,dm_base.group_dm_manager,1,1,1,1
+access_dm_stabilizer_user,dm.stabilizer.user,model_dm_stabilizer,dm_base.group_dm_user,1,0,0,0
+access_dm_stabilizer_manager,dm.stabilizer.manager,model_dm_stabilizer,dm_base.group_dm_manager,1,1,1,1
+access_dm_taste_flavor_user,dm.taste.flavor.user,model_dm_taste_flavor,dm_base.group_dm_user,1,0,0,0
+access_dm_taste_flavor_manager,dm.taste.flavor.manager,model_dm_taste_flavor,dm_base.group_dm_manager,1,1,1,1
+access_dm_shape_user,dm.shape.user,model_dm_shape,dm_base.group_dm_user,1,0,0,0
+access_dm_shape_manager,dm.shape.manager,model_dm_shape,dm_base.group_dm_manager,1,1,1,1
+access_dm_color_user,dm.color.user,model_dm_color,dm_base.group_dm_user,1,0,0,0
+access_dm_color_manager,dm.color.manager,model_dm_color,dm_base.group_dm_manager,1,1,1,1
+access_dm_compliance_region_user,dm.compliance.region.user,model_dm_compliance_region,dm_base.group_dm_user,1,0,0,0
+access_dm_compliance_region_manager,dm.compliance.region.manager,model_dm_compliance_region,dm_base.group_dm_manager,1,1,1,1
+access_product_template_user,product.template.dm.user,product.model_product_template,dm_base.group_dm_user,1,1,0,0
+access_product_template_manager,product.template.dm.manager,product.model_product_template,dm_base.group_dm_manager,1,1,1,0
+access_product_product_user,product.product.dm.user,product.model_product_product,dm_base.group_dm_user,1,1,0,0
+access_product_product_manager,product.product.dm.manager,product.model_product_product,dm_base.group_dm_manager,1,1,1,0
+access_dm_milestone_type_user,dm.milestone.type user,model_dm_milestone_type,dm_base.group_dm_user,1,0,0,0
+access_dm_milestone_type_manager,dm.milestone.type manager,model_dm_milestone_type,dm_base.group_dm_manager,1,1,1,1

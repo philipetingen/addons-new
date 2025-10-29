@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ================================================================== -->
+    <!-- EXISTING: Server Action - Allocate to Production (Bulk Wizard)    -->
+    <!-- ================================================================== -->
+    <record id="action_server_allocate_to_production" model="ir.actions.server">
+        <field name="name">Allocate to Production</field>
+        <field name="model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = {
+        'type': 'ir.actions.act_window',
+        'name': 'Allocate to Production',
+        'res_model': 'dm.production.allocation.wizard',
+        'view_mode': 'form',
+        'target': 'new',
+        'context': {
+            'default_deal_ids': [(6, 0, records.ids)],
+        }
+    }
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- PHASE 3A NEW: Quick Allocate Action (Single Deal)                 -->
+    <!-- ================================================================== -->
+    <record id="action_server_quick_allocate_to_pr" model="ir.actions.server">
+        <field name="name">Quick Allocate to Production</field>
+        <field name="model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = records[0].action_quick_allocate_to_pr()
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- PHASE 3A NEW: Remove from Production Action                       -->
+    <!-- ================================================================== -->
+    <record id="action_server_remove_from_production" model="ir.actions.server">
+        <field name="name">Remove from Production</field>
+        <field name="model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">
+for deal in records:
+    deal.action_remove_from_production()
+        </field>
+    </record>
+    
+    <!-- ================================================================== -->
+    <!-- EXISTING: Sequence for Production Runs                            -->
+    <!-- ================================================================== -->
+    <record id="seq_dm_production_run" model="ir.sequence">
+        <field name="name">Production Run Sequence</field>
+        <field name="code">dm.production.run</field>
+        <field name="prefix">PR</field>
+        <field name="padding">5</field>
+        <field name="company_id" eval="False"/>
+    </record>
+    
+</odoo>

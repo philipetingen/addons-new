@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        
+        <!-- ================================================================== -->
+        <!-- VENDOR CAPACITY CONSTRAINT VIEWS - COMPLETE FIX                    -->
+        <!-- ================================================================== -->
+        
+        <!-- Form View - Fixed with conditional readonly -->
+        <record id="view_dm_vendor_capacity_constraint_form" model="ir.ui.view">
+            <field name="name">dm.vendor.capacity.constraint.form</field>
+            <field name="model">dm.vendor.capacity.constraint</field>
+            <field name="arch" type="xml">
+                <form string="Capacity Constraint">
+                    <sheet>
+                        <group>
+                            <group string="Identification">
+                                <field name="name" placeholder="e.g., Lines 1-2 (Products A, B)"/>
+                                <field name="sequence"/>
+                                <field name="active" widget="boolean_toggle"/>
+                            </group>
+                            
+                            <group string="Parent Capacity">
+                                <!-- Make editable when creating from constraint menu, readonly when from capacity -->
+                                <field name="vendor_capacity_id" 
+                                       readonly="id != False"
+                                       required="1"
+                                       options="{'no_create': True}"/>
+                                <field name="vendor_id" readonly="1"/>
+                            </group>
+                        </group>
+                        
+                        <group string="What Does This Constrain?">
+                            <group>
+                                <field name="constraint_type" widget="radio"/>
+                            </group>
+                        </group>
+                        
+                        <!-- Product Selection -->
+                        <group invisible="constraint_type != 'product'">
+                            <group string="Specific Products">
+                                <field name="product_ids" 
+                                       widget="many2many_tags"
+                                       required="constraint_type == 'product'"
+                                       invisible="constraint_type != 'product'"
+                                       options="{'no_create': True}"
+                                       domain="[('type', 'in', ['product', 'consu'])]"
+                                       placeholder="Select products..."/>
+                                <field name="product_count" 
+                                       readonly="1" 
+                                       invisible="constraint_type != 'product'"/>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <!-- Category Selection -->
+                        <group invisible="constraint_type != 'category'">
+                            <group string="Product Categories">
+                                <field name="category_ids" 
+                                       widget="many2many_tags"
+                                       required="constraint_type == 'category'"
+                                       invisible="constraint_type != 'category'"
+                                       options="{'no_create': True}"
+                                       placeholder="Select categories..."/>
+                                <field name="category_count" 
+                                       readonly="1" 
+                                       invisible="constraint_type != 'category'"/>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <!-- Entry Mode Selection -->
+                        <group string="Capacity Limit">
+                            <group>
+                                <field name="entry_mode" widget="radio"/>
+                            </group>
+                        </group>
+                        
+                        <!-- TEU Entry -->
+                        <group invisible="entry_mode == 'containers'">
+                            <group string="Direct TEU Entry">
+                                <field name="max_capacity_teu" 
+                                       required="entry_mode == 'teu'"
+                                       invisible="entry_mode == 'containers'"
+                                       placeholder="e.g., 4.0"/>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <!-- Container Entry -->
+                        <group invisible="entry_mode == 'teu'">
+                            <group string="Container-Based Entry">
+                                <field name="max_capacity_containers" 
+                                       required="entry_mode == 'containers'"
+                                       invisible="entry_mode == 'teu'"
+                                       placeholder="e.g., 2.0"/>
+                                <field name="container_type_id" 
+                                       required="entry_mode == 'containers'"
+                                       invisible="entry_mode == 'teu'"
+                                       options="{'no_create': True}"/>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <!-- Effective Capacity Display -->
+                        <group>
+                            <group string="Effective Limit">
+                                <label for="effective_max_capacity_teu" string="Maximum"/>
+                                <div class="o_row">
+                                    <field name="effective_max_capacity_teu" class="oe_inline" readonly="1"/>
+                                    <span class="oe_inline">TEU per month</span>
+                                </div>
+                            </group>
+                            <group/>
+                        </group>
+                        
+                        <!-- Description -->
+                        <group string="Description">
+                            <field name="description" 
+                                   placeholder="e.g., 'Production lines 1-2 share equipment and can handle chocolate products'"
+                                   nolabel="1"
+                                   colspan="2"/>
+                        </group>
+                        
+                    </sheet>
+                </form>
+            </field>
+        </record>
+        
+        <!-- Tree View (standalone) - Opens form popup -->
+        <record id="view_dm_vendor_capacity_constraint_tree" model="ir.ui.view">
+            <field name="name">dm.vendor.capacity.constraint.tree</field>
+            <field name="model">dm.vendor.capacity.constraint</field>
+            <field name="arch" type="xml">
+                <tree string="Capacity Constraints">
+                    <field name="sequence" widget="handle"/>
+                    <field name="vendor_id" optional="show"/>
+                    <field name="name"/>
+                    <field name="constraint_type"/>
+                    <field name="product_count" string="# Prod..." optional="show"/>
+                    <field name="category_count" string="# Categ..." optional="show"/>
+                    <field name="display_scope" string="Applies To"/>
+                    <field name="entry_mode" optional="hide"/>
+                    <field name="effective_max_capacity_teu" string="Max TEU/Month"/>
+                    <field name="description" optional="hide"/>
+                    <field name="active" widget="boolean_toggle"/>
+                </tree>
+            </field>
+        </record>
+        
+        <!-- Action (for standalone access) -->
+        <record id="action_dm_vendor_capacity_constraint" model="ir.actions.act_window">
+            <field name="name">Capacity Constraints</field>
+            <field name="res_model">dm.vendor.capacity.constraint</field>
+            <field name="view_mode">tree,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    No capacity constraints defined
+                </p>
+                <p>
+                    Constraints are typically created within vendor capacity records.<br/>
+                    They represent specific production line limitations.
+                </p>
+            </field>
+        </record>
+        
+    </data>
+</odoo>

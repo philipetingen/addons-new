@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Inherit Deal Form View to add Financial Features -->
+    <record id="view_dm_deal_form_financial_inherit" model="ir.ui.view">
+        <field name="name">dm.deal.form.financial.inherit</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_form"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add ALL invisible fields at the very beginning, before the header -->
+            <xpath expr="//header" position="before">
+                <!-- Milestone tracking fields -->
+                <field name="confirmation_date" invisible="1"/>
+                <field name="production_start_current" invisible="1"/>
+                <field name="loading_date_current" invisible="1"/>
+                <field name="etd_current" invisible="1"/>
+                <field name="delivery_date" invisible="1"/>
+                <field name="rts_actual" invisible="1"/>
+                <field name="eta_actual" invisible="1"/>
+                <!-- Financial counts -->
+                <field name="downpayment_count" invisible="1"/>
+                <field name="invoice_count" invisible="1"/>
+                <field name="payment_milestone_count" invisible="1"/>
+                <!-- Compatibility fields -->
+                <field name="total_value" invisible="1"/>
+                <field name="purchase_total" invisible="1"/>
+                <!-- Relationships -->
+                <field name="invoice_split_config_id" invisible="1"/>
+                <field name="downpayment_request_ids" invisible="1"/>
+                <field name="payment_milestone_ids" invisible="1"/>
+                <field name="invoice_ids" invisible="1"/>
+                <!-- Financial summary fields -->
+                <field name="payment_milestone_dates" invisible="1"/>
+                <field name="next_milestone_date" invisible="1"/>
+                <field name="payment_progress" invisible="1"/>
+                <field name="total_receivable" invisible="1"/>
+                <field name="total_payable" invisible="1"/>
+                <field name="gross_margin" invisible="1"/>
+                <field name="gross_margin_percent" invisible="1"/>
+                <field name="total_sale_amount" invisible="1"/>
+                <field name="total_purchase_amount" invisible="1"/>
+                <field name="margin_amount" invisible="1"/>
+                <field name="margin_percentage" invisible="1"/>
+            </xpath>
+            
+            <!-- Add smart buttons in button box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_downpayments" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-money">
+                    <field name="downpayment_count" widget="statinfo" string="Down Payments"/>
+                </button>
+                <button name="action_view_invoices" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-file-text-o"
+                        invisible="invoice_count == 0">
+                    <field name="invoice_count" widget="statinfo" string="Invoices"/>
+                </button>
+                <button name="action_view_payment_milestones" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-calendar-check-o"
+                        invisible="payment_milestone_count == 0">
+                    <field name="payment_milestone_count" widget="statinfo" string="Milestones"/>
+                </button>
+                <button name="action_view_cash_flow" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-line-chart">
+                    <span class="o_stat_text">Cash Flow</span>
+                </button>
+                <button name="action_generate_invoices" 
+                        type="object"
+                        class="oe_stat_button" 
+                        icon="fa-gears"
+                        invisible="state not in ['ready', 'shipping', 'delivered']">
+                    <span class="o_stat_text">Generate Invoices</span>
+                </button>
+            </xpath>
+            
+            <!-- Add milestone badges below title for quick visibility -->
+            <xpath expr="//div[@class='oe_title']" position="after">
+                <group invisible="not confirmation_date and not production_start_current and not loading_date_current">
+                    <group colspan="4" class="oe_inline">
+                        <span class="o_form_label">Key Milestones</span>
+                        <div class="o_row">
+                            <span class="badge badge-info me-2" invisible="not confirmation_date">
+                                <i class="fa fa-check"/> Confirmed: <field name="confirmation_date" readonly="1"/>
+                            </span>
+                            <span class="badge badge-warning me-2" invisible="not production_start_current">
+                                <i class="fa fa-industry"/> Production: <field name="production_start_current" readonly="1"/>
+                            </span>
+                            <span class="badge badge-primary me-2" invisible="not loading_date_current">
+                                <i class="fa fa-truck"/> Loading: <field name="loading_date_current" readonly="1"/>
+                            </span>
+                            <span class="badge badge-success" invisible="not delivery_date">
+                                <i class="fa fa-home"/> Delivery: <field name="delivery_date" readonly="1"/>
+                            </span>
+                        </div>
+                    </group>
+                </group>
+            </xpath>
+            
+            <!-- Add financial tabs to the notebook -->
+            <xpath expr="//notebook" position="inside">
+                <!-- Financial Summary Tab -->
+                <page string="Financial Summary" name="financial_summary">
+                    <group>
+                        <group string="Deal Value">
+                            <field name="total_sale_amount" widget="monetary"/>
+                            <field name="total_purchase_amount" widget="monetary"/>
+                            <field name="margin_amount" widget="monetary"/>
+                            <field name="margin_percentage" widget="percentage"/>
+                        </group>
+                        <group string="Outstanding Amounts">
+                            <field name="total_receivable" widget="monetary"/>
+                            <field name="total_payable" widget="monetary"/>
+                            <field name="gross_margin" widget="monetary"/>
+                            <field name="gross_margin_percent" widget="percentage"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Payment Schedule Overview" invisible="not payment_milestone_dates">
+                        <field name="payment_milestone_dates" nolabel="1" readonly="1"/>
+                    </group>
+                    
+                    <group>
+                        <button name="action_generate_milestones" 
+                                string="Generate Payment Milestones" 
+                                type="object"
+                                class="btn-secondary"
+                                invisible="state not in ['confirmed', 'allocated', 'ready']"/>
+                    </group>
+                </page>
+                
+                <!-- Payment Milestones Tab -->
+                <page string="Payment Milestones" name="payment_milestones">
+                    <group>
+                        <group string="Milestone Tracking Dates" colspan="2">
+                            <field name="confirmation_date" readonly="1"/>
+                            <field name="production_start_current" readonly="1"/>
+                            <field name="rts_actual" readonly="1"/>
+                            <field name="loading_date_current" readonly="1"/>
+                            <field name="etd_current" readonly="1"/>
+                            <field name="eta_actual" readonly="1"/>
+                            <field name="delivery_date" readonly="1"/>
+                        </group>
+                        <group string="Payment Progress" colspan="2">
+                            <field name="payment_progress" widget="progressbar"/>
+                            <field name="next_milestone_date" readonly="1"/>
+                        </group>
+                    </group>
+                    
+					<separator string="Milestone Details"/>
+
+					<field name="payment_milestone_ids" readonly="state == 'cancelled'">
+						<tree editable="bottom" 
+							  decoration-success="state == 'paid'"
+							  decoration-warning="state in ['due', 'requested']"
+							  decoration-info="state == 'pending'">
+							<field name="sequence" widget="handle"/>
+							<field name="milestone_type_id" required="1"/>
+							<field name="payment_type" required="1"/>
+							<field name="partner_id" readonly="1"/>
+							<field name="percentage" sum="Total %"/>
+							<field name="fixed_amount" sum="Total Fixed"/>
+							<field name="amount" sum="Total Amount" widget="monetary"/>
+							<field name="milestone_date"/>
+							<field name="due_date" readonly="1"/>
+							<field name="amount_paid" sum="Total Paid" widget="monetary"/>
+							<field name="amount_remaining" sum="Total Due" widget="monetary"/>
+							<field name="state" widget="badge"/>
+							<field name="currency_id" invisible="1"/>
+							<field name="downpayment_count" invisible="1"/>
+							<button name="action_create_downpayment" 
+									string="Create DP" 
+									type="object"
+									class="btn-sm btn-secondary"
+									invisible="state != 'due'"/>
+							<button name="action_view_downpayments" 
+									string="View DPs" 
+									type="object"
+									class="btn-sm btn-link"
+									invisible="downpayment_count == 0"/>
+						</tree>
+					</field>
+                </page>
+                
+                <!-- Down Payments Tab -->
+                <page string="Down Payments" name="downpayments">
+                    <field name="downpayment_request_ids" readonly="1">
+                        <tree decoration-success="state == 'paid'"
+                              decoration-warning="state == 'overdue'"
+                              decoration-danger="state == 'cancelled'"
+                              decoration-info="state in ['draft', 'sent']">
+                            <field name="name"/>
+                            <field name="request_type"/>
+                            <field name="partner_id"/>
+                            <field name="percentage" widget="percentage"/>
+                            <field name="amount_requested" sum="Total Requested" widget="monetary"/>
+                            <field name="amount_received" sum="Total Received" widget="monetary"/>
+                            <field name="amount_due" sum="Total Due" widget="monetary"/>
+                            <field name="due_date"/>
+                            <field name="milestone_trigger"/>
+                            <field name="days_overdue" invisible="days_overdue == 0"/>
+                            <field name="state" widget="badge"/>
+                            <button name="action_send" 
+                                    string="Send" 
+                                    type="object"
+                                    class="btn-sm btn-primary"
+                                    invisible="state != 'draft'"/>
+                            <button name="action_register_payment" 
+                                    string="Register Payment" 
+                                    type="object"
+                                    class="btn-sm btn-success"
+                                    invisible="state not in ['sent', 'partial']"/>
+                        </tree>
+                    </field>
+                </page>
+                
+                <!-- Invoices Tab -->
+                <page string="Invoices" name="invoices" invisible="invoice_count == 0">
+                    <group invisible="not invoice_split_config_id">
+                        <group string="Invoice Split Configuration">
+                            <field name="invoice_split_config_id" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <separator string="Generated Invoices"/>
+                    <field name="invoice_ids" readonly="1">
+                        <tree decoration-success="state == 'posted' and move_type == 'out_invoice'"
+                              decoration-info="state == 'draft'"
+                              decoration-warning="move_type == 'in_invoice'">
+                            <field name="name"/>
+                            <field name="invoice_date"/>
+                            <field name="partner_id"/>
+                            <field name="move_type"/>
+                            <field name="amount_total" widget="monetary" sum="Total"/>
+                            <field name="amount_residual" widget="monetary" sum="Outstanding"/>
+                            <field name="state" widget="badge"/>
+                            <button name="action_post" 
+                                    string="Post" 
+                                    type="object"
+                                    class="btn-sm btn-primary"
+                                    invisible="state != 'draft'"
+                                    groups="account.group_account_invoice"/>
+                        </tree>
+                    </field>
+                </page>
+                
+                <!-- Cash Flow Tab -->
+                <page string="Cash Flow" name="cash_flow">
+                    <group>
+<!--                         <button name="_generate_cash_flow_projection" 
+                                string="Generate Cash Flow Projection" 
+                                type="object"
+                                class="btn-secondary"
+                                invisible="state == 'cancelled'"/> -->
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+    
+    <!-- Extend Tree View to add financial columns -->
+    <record id="view_dm_deal_tree_financial_inherit" model="ir.ui.view">
+        <field name="name">dm.deal.tree.financial.inherit</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_tree"/>
+        <field name="arch" type="xml">
+            <field name="state" position="after">
+                <field name="confirmation_date" optional="hide"/>
+                <field name="payment_progress" widget="progressbar" optional="show"/>
+                <field name="total_receivable" widget="monetary" optional="hide"/>
+                <field name="total_payable" widget="monetary" optional="hide"/>
+            </field>
+        </field>
+		
+    </record>
+    
+	<!-- Extend Search View with financial filters -->
+	<record id="view_dm_deal_search_financial_inherit" model="ir.ui.view">
+		<field name="name">dm.deal.search.financial.inherit</field>
+		<field name="model">dm.deal</field>
+		<field name="inherit_id" ref="dm_deal.view_dm_deal_search"/>
+		<field name="arch" type="xml">
+			<!-- Add filters after the last filter in the search view -->
+			<xpath expr="//search/filter[last()]" position="after">
+				<separator/>
+				<!-- Remove the filter that uses downpayment_count as it's not searchable -->
+				<!-- <filter name="has_downpayments" string="Has Down Payments" 
+						domain="[('downpayment_count', '&gt;', 0)]"/> -->
+				<!-- Use a different approach - check if downpayment_request_ids exists -->
+				<filter name="has_downpayments" string="Has Down Payments" 
+						domain="[('downpayment_request_ids', '!=', False)]"/>
+				<filter name="overdue_payments" string="Overdue Payments" 
+						domain="[('downpayment_request_ids.state', '=', 'overdue')]"/>
+				<filter name="pending_milestones" string="Pending Milestones" 
+						domain="[('payment_milestone_ids.state', 'in', ['pending', 'due'])]"/>
+				<!-- Remove invoice_count filter as it's also not searchable -->
+				<!-- <filter name="invoiced" string="Invoiced" 
+						domain="[('invoice_count', '&gt;', 0)]"/> -->
+				<!-- Use invoice_ids instead -->
+				<filter name="invoiced" string="Invoiced" 
+						domain="[('invoice_ids', '!=', False)]"/>
+			</xpath>
+			
+			<!-- Add group by filters -->
+			<xpath expr="//search/group/filter[last()]" position="after">
+				<filter name="group_by_confirmation" string="Confirmation Month" 
+						context="{'group_by': 'confirmation_date:month'}"/>
+				<!-- Remove payment_progress grouping as it's not searchable/groupable -->
+				<!-- <filter name="group_by_payment_progress" string="Payment Progress" 
+						context="{'group_by': 'payment_progress:interval(25)'}"/> -->
+			</xpath>
+		</field>
+	</record>    
+
+    <!-- Add the action HERE, after the views but before </odoo> -->
+    <record id="action_dm_deal_financial_dashboard" model="ir.actions.act_window">
+        <field name="name">Deal Financial Dashboard</field>
+        <field name="res_model">dm.deal</field>
+        <field name="view_mode">tree,form,kanban,pivot,graph</field>
+        <field name="domain">[('state', 'not in', ['draft', 'cancelled'])]</field>
+        <field name="context">{
+            'search_default_confirmed': 1,
+            'search_default_allocated': 1,
+            'search_default_ready': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Active Deals with Financial Data
+            </p>
+            <p>
+                This dashboard shows financial aspects of active deals including
+                downpayments, invoices, payment milestones, and cash flow projections.
+            </p>
+        </field>
+    </record>
+
+</odoo>

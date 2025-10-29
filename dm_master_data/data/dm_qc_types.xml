@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Visual Inspection Checks -->
+        <record id="qc_visual_appearance" model="dm.qc_type">
+            <field name="name">Visual Appearance</field>
+            <field name="code">VA</field>
+            <field name="sequence">10</field>
+            <field name="category">visual</field>
+            <field name="check_point">finished</field>
+            <field name="check_method">Visual inspection of product appearance, color, and consistency</field>
+            <field name="acceptance_criteria">Product matches approved sample, no visible defects or contamination</field>
+            <field name="requires_photo">True</field>
+        </record>
+        
+        <!-- Packaging Checks -->
+        <record id="qc_packaging_integrity" model="dm.qc_type">
+            <field name="name">Packaging Integrity</field>
+            <field name="code">PI</field>
+            <field name="sequence">20</field>
+            <field name="category">packaging</field>
+            <field name="check_point">finished</field>
+            <field name="check_method">Check for damage, proper sealing, and correct packaging type</field>
+            <field name="acceptance_criteria">No damage, proper seal, correct package type and size</field>
+        </record>
+        
+        <record id="qc_packaging_count" model="dm.qc_type">
+            <field name="name">Package Count Verification</field>
+            <field name="code">PC</field>
+            <field name="sequence">25</field>
+            <field name="category">packaging</field>
+            <field name="check_point">pre_loading</field>
+            <field name="check_method">Count total packages and verify against packing list</field>
+            <field name="acceptance_criteria">Package count matches packing list exactly</field>
+        </record>
+        
+        <!-- Labeling Checks -->
+        <record id="qc_label_accuracy" model="dm.qc_type">
+            <field name="name">Label Accuracy</field>
+            <field name="code">LA</field>
+            <field name="sequence">30</field>
+            <field name="category">labeling</field>
+            <field name="check_point">finished</field>
+            <field name="check_method">Verify all label information against specifications</field>
+            <field name="acceptance_criteria">All required information present and accurate including: Product name, Batch/lot number, Production date, Expiry date, Net weight, Manufacturer details</field>
+        </record>
+        
+        <!-- Weight Checks -->
+        <record id="qc_weight_verification" model="dm.qc_type">
+            <field name="name">Weight Verification</field>
+            <field name="code">WV</field>
+            <field name="sequence">40</field>
+            <field name="category">weight</field>
+            <field name="check_point">finished</field>
+            <field name="check_method">Weigh sample packages and compare to declared weight</field>
+            <field name="acceptance_criteria">Weight within ±2% of declared weight</field>
+            <field name="requires_sampling">True</field>
+            <field name="sample_size">5% or minimum 3 packages</field>
+        </record>
+        
+        <!-- Temperature Checks (for refrigerated products) -->
+        <record id="qc_temperature_check" model="dm.qc_type">
+            <field name="name">Temperature Verification</field>
+            <field name="code">TC</field>
+            <field name="sequence">50</field>
+            <field name="category">temperature</field>
+            <field name="check_point">pre_loading</field>
+            <field name="check_method">Measure product core temperature</field>
+            <field name="acceptance_criteria">Temperature within specified range</field>
+            <field name="is_critical">True</field>
+        </record>
+        
+        <!-- Documentation Checks -->
+        <record id="qc_documentation" model="dm.qc_type">
+            <field name="name">Documentation Complete</field>
+            <field name="code">DC</field>
+            <field name="sequence">60</field>
+            <field name="category">documentation</field>
+            <field name="check_point">pre_loading</field>
+            <field name="check_method">Verify all required documents are present and complete</field>
+            <field name="acceptance_criteria">All required documents present with correct information</field>
+        </record>
+        
+        <!-- Container Checks -->
+        <record id="qc_container_condition" model="dm.qc_type">
+            <field name="name">Container Condition</field>
+            <field name="code">CC</field>
+            <field name="sequence">70</field>
+            <field name="category">visual</field>
+            <field name="check_point">pre_loading</field>
+            <field name="check_method">Inspect container for cleanliness, damage, and odors</field>
+            <field name="acceptance_criteria">Container clean, dry, odor-free, no damage</field>
+            <field name="requires_photo">True</field>
+        </record>
+        
+        <!-- Post-Loading Checks -->
+        <record id="qc_loading_complete" model="dm.qc_type">
+            <field name="name">Loading Completion</field>
+            <field name="code">LC</field>
+            <field name="sequence">80</field>
+            <field name="category">other</field>
+            <field name="check_point">post_loading</field>
+            <field name="check_method">Verify proper stowage and securing of cargo</field>
+            <field name="acceptance_criteria">Cargo properly stowed, secured, container sealed</field>
+            <field name="requires_photo">True</field>
+        </record>
+        
+    </data>
+</odoo>

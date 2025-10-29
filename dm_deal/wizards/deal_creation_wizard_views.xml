@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    
+    <!-- ========================================== -->
+    <!-- STEP 1: DEAL HEADER                        -->
+    <!-- ========================================== -->
+    
+    <record id="view_deal_creation_wizard_step1" model="ir.ui.view">
+        <field name="name">dm.deal.creation.wizard.step1</field>
+        <field name="model">dm.deal.creation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create Deal - Step 1: Deal Header">
+                <!-- Hidden fields for conditions -->
+                <field name="current_step" invisible="1"/>
+                <field name="template_id" invisible="1"/>
+                <field name="eta_requested" invisible="1"/>
+                <field name="rts_requested" invisible="1"/>
+                <field name="customer_id" invisible="1"/>
+                
+                <header>
+                    <div class="oe_subtitle">
+                        <strong>Step 1 of 3: Deal Header</strong>
+                    </div>
+                </header>
+                
+                <sheet>
+                    <group>
+                        <group string="Required Information">
+                            <field name="customer_id" 
+                                   options="{'no_create': True, 'no_open': True}"
+                                   required="1"
+                                   invisible="0"/>
+                            <field name="customer_po_number" 
+                                   placeholder="e.g., PO-TGT-2024-Q1-089"
+                                   required="1"/>
+                            <field name="po_date" required="1"/>
+                        </group>
+                        
+                        <group string="Delivery Schedule">
+                            <field name="eta_requested" 
+                                   placeholder="Estimated arrival date"
+                                   invisible="0"/>
+                            <field name="rts_requested" 
+                                   placeholder="Auto-calculated from ETA"
+                                   invisible="0"/>
+                            <field name="template_id" 
+                                   readonly="1"
+                                   string="Template Applied"
+                                   invisible="0"/>
+                        </group>
+                    </group>
+                    
+					<group string="Customer Information" invisible="not customer_id">
+						<field name="customer_payment_term_id" readonly="1"/>
+						<field name="currency_id" readonly="1"/>
+					</group>
+                    
+                    <div class="alert alert-info" role="alert" 
+                         invisible="not eta_requested or rts_requested">
+                        <strong>RTS Calculation:</strong> 
+                        <span invisible="not template_id">
+                            Using template lead time
+                        </span>
+                        <span invisible="template_id">
+                            Using default lead time of 37 days
+                        </span>
+                    </div>
+                </sheet>
+                
+                <footer>
+                    <button name="action_next_step" 
+                            type="object" 
+                            string="Next: Add Products" 
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- ========================================== -->
+    <!-- STEP 2: ADD PRODUCTS                       -->
+    <!-- ========================================== -->
+    
+    <record id="view_deal_creation_wizard_step2" model="ir.ui.view">
+        <field name="name">dm.deal.creation.wizard.step2</field>
+        <field name="model">dm.deal.creation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create Deal - Step 2: Add Products">
+                <!-- Hidden fields for conditions -->
+                <field name="current_step" invisible="1"/>
+                <field name="customer_id" invisible="1"/>
+                <field name="line_count" invisible="1"/>
+                
+                <header>
+                    <div class="oe_subtitle">
+                        <strong>Step 2 of 3: Add Products</strong>
+                    </div>
+                </header>
+                
+                <sheet>
+                    <group>
+                        <group>
+                            <label for="customer_id" string="Customer"/>
+                            <div>
+                                <field name="customer_id" readonly="1" nolabel="1" invisible="0"/>
+                            </div>
+                        </group>
+                        <group>
+                            <field name="line_count" readonly="1" invisible="0"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Product Lines">
+                            <field name="line_ids" nolabel="1">
+								<tree editable="bottom" decoration-warning="moq_status == 'below'">
+									<field name="sequence" widget="handle" width="30px"/>
+									<field name="customer_product_code" placeholder="Customer code..." width="120px"/>
+									<field name="product_id" required="1" width="200px"/>
+									<field name="packaging_id" 
+										   required="1"
+										   domain="[('product_id', '=', product_id)]"
+										   width="120px"/>
+									
+									<field name="entry_mode" widget="radio" width="80px"/>
+									
+									<field name="quantity_packaging" 
+										   readonly="entry_mode == 'kg'"
+										   required="entry_mode == 'pkg'"
+										   force_save="1"
+										   width="100px"/>
+
+									<field name="weight" 
+										   readonly="entry_mode == 'pkg'"
+										   required="entry_mode == 'kg'"
+										   width="100px"/>
+									
+									<field name="price_packaging_sale" required="1" width="120px"/>
+									<field name="price_per_kg_reference" optional="show" width="100px"/>
+									<field name="amount_sale" readonly="1" sum="total" width="120px"/>
+									
+									<field name="product_moq" optional="hide" width="80px"/>
+									<field name="moq_status" 
+										   widget="badge"
+										   decoration-success="moq_status == 'ok'"
+										   decoration-warning="moq_status == 'below'"
+										   decoration-muted="moq_status == 'unknown'"
+										   width="80px"/>
+									
+									<field name="moq_override_reason" 
+										   invisible="moq_status != 'below'"
+										   placeholder="Reason for MOQ override"
+										   width="150px"/>
+									
+									<field name="supplier_id" optional="show" width="150px"/>
+									<field name="currency_id" invisible="1"/>
+								</tree>
+                            </field>
+                            
+                            <div class="alert alert-warning" role="alert" 
+                                 invisible="line_count &gt; 0">
+                                <strong>No product lines yet.</strong> 
+                                Click "Add a line" above to add your first product.
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+                <footer>
+                    <button name="action_previous_step" 
+                            type="object" 
+                            string="Back" 
+                            class="btn-secondary"/>
+                    <button name="action_next_step" 
+                            type="object" 
+                            string="Next: Review" 
+                            class="btn-primary"
+                            invisible="line_count == 0"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- ========================================== -->
+    <!-- STEP 3: REVIEW & CREATE                    -->
+    <!-- ========================================== -->
+    
+    <record id="view_deal_creation_wizard_step3" model="ir.ui.view">
+        <field name="name">dm.deal.creation.wizard.step3</field>
+        <field name="model">dm.deal.creation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create Deal - Step 3: Review &amp; Create">
+                <!-- Hidden fields for conditions -->
+                <field name="current_step" invisible="1"/>
+                <field name="customer_id" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="template_id" invisible="1"/>
+                <field name="has_warnings" invisible="1"/>
+                <field name="moq_warning_count" invisible="1"/>
+                
+                <header>
+                    <div class="oe_subtitle">
+                        <strong>Step 3 of 3: Review &amp; Create</strong>
+                    </div>
+                </header>
+                
+                <sheet>
+                    <group>
+                        <group string="Deal Header">
+                            <label for="customer_id" string="Customer"/>
+                            <div>
+                                <field name="customer_id" readonly="1" nolabel="1" invisible="0"/>
+                            </div>
+                            <field name="customer_po_number" readonly="1"/>
+                            <field name="po_date" readonly="1"/>
+                        </group>
+                        
+                        <group string="Schedule">
+                            <field name="rts_requested" readonly="1"/>
+                            <field name="eta_requested" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <group>
+                        <group string="Totals">
+                            <field name="line_count" readonly="1"/>
+                            <field name="total_amount" readonly="1" 
+                                   widget="monetary"/>
+                            <field name="total_weight" readonly="1"/>
+                        </group>
+                        
+                        <group string="Template Settings" invisible="not template_id">
+                            <field name="template_id" readonly="1" invisible="0"/>
+                        </group>
+                    </group>
+                    
+                    <div class="alert alert-warning" role="alert" 
+                         invisible="not has_warnings">
+                        <strong>âš  Warnings:</strong>
+                        <ul>
+                            <li invisible="moq_warning_count == 0">
+                                <field name="moq_warning_count" readonly="1" invisible="0"/> 
+                                product line(s) below MOQ - please provide override reason
+                            </li>
+                        </ul>
+                    </div>
+                    
+
+					<field name="line_ids" string="Product Lines">
+						<tree decoration-warning="moq_status == 'below'">
+							<field name="product_id"/>
+							<field name="packaging_id"/>
+							<field name="quantity_packaging" 
+								   string="Qty (Pkg)"/>
+							<field name="weight"/>
+							<field name="price_packaging_sale"/>
+							<field name="amount_sale" sum="total"/>
+							<field name="moq_status" 
+								   widget="badge"
+								   decoration-success="moq_status == 'ok'"
+								   decoration-warning="moq_status == 'below'"/>
+							<field name="moq_override_reason" 
+								   invisible="moq_status != 'below'"/>
+							<field name="currency_id" invisible="1"/>
+						</tree>
+					</field>
+
+                    
+                    <div class="alert alert-info" role="alert">
+                        <strong>Ready to create?</strong><br/>
+                        This will create:
+                        <ul>
+                            <li>Deal record with customer PO reference</li>
+                            <li>All product lines as specified</li>
+                            <li>Draft Sales Order and Purchase Order</li>
+                        </ul>
+                        Click "Create Deal" to proceed.
+                    </div>
+                </sheet>
+                
+                <footer>
+                    <button name="action_previous_step" 
+                            type="object" 
+                            string="Back to Edit" 
+                            class="btn-secondary"/>
+                    <button name="action_create_deal" 
+                            type="object" 
+                            string="Create Deal" 
+                            class="btn-primary"
+                            confirm="Are you sure you want to create this deal? All data will be saved."/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- ========================================== -->
+    <!-- WIZARD ACTION                              -->
+    <!-- ========================================== -->
+    
+	<record id="action_deal_creation_wizard" model="ir.actions.act_window">
+		<field name="name">Create Deal (Wizard)</field>
+		<field name="res_model">dm.deal.creation.wizard</field>
+		<field name="view_mode">form</field>
+		<field name="view_id" ref="view_deal_creation_wizard_step1"/>
+		<field name="target">new</field>
+		<field name="context">{
+			'default_current_step': 'step1_header',
+			'dialog_size': 'extra-large'
+		}</field>
+	</record>
+
+</odoo>

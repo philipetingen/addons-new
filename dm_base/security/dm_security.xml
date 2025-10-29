@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Module Categories -->
+        <record id="module_category_donnamello" model="ir.module.category">
+            <field name="name">DonnaMello</field>
+            <field name="description">DonnaMello Distribution System</field>
+            <field name="sequence">1</field>
+        </record>
+        
+        <!-- Security Groups -->
+        <record id="group_dm_user" model="res.groups">
+            <field name="name">DM User</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">Basic user access to DonnaMello system</field>
+        </record>
+        
+        <record id="group_dm_sales" model="res.groups">
+            <field name="name">DM Sales</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_user'))]"/>
+            <field name="comment">Sales team access - can manage deals and customers</field>
+        </record>
+        
+        <record id="group_dm_operations" model="res.groups">
+            <field name="name">DM Operations</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_user'))]"/>
+            <field name="comment">Operations team - can manage production and shipments</field>
+        </record>
+        
+        <record id="group_dm_finance" model="res.groups">
+            <field name="name">DM Finance</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_user'))]"/>
+            <field name="comment">Finance team - can manage invoicing and payments</field>
+        </record>
+        
+        <record id="group_dm_manager" model="res.groups">
+            <field name="name">DM Manager</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_sales')), (4, ref('group_dm_operations')), (4, ref('group_dm_finance'))]"/>
+            <field name="comment">Full manager access to all DonnaMello functions</field>
+        </record>
+        
+        <record id="group_dm_admin" model="res.groups">
+            <field name="name">DM Administrator</field>
+            <field name="category_id" ref="module_category_donnamello"/>
+            <field name="implied_ids" eval="[(4, ref('group_dm_manager'))]"/>
+            <field name="comment">System administrator for DonnaMello</field>
+        </record>
+        
+    </data>
+</odoo>

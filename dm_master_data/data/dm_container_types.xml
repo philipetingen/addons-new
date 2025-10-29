@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- 20' Containers -->
+        <record id="container_20gp" model="dm.container.type">
+            <field name="name">20ft General Purpose</field>
+            <field name="size_code">20</field>
+            <field name="type_code">GP</field>
+            <field name="iso_code">22G1</field>
+            <field name="external_length">6.058</field>
+            <field name="external_width">2.438</field>
+            <field name="external_height">2.591</field>
+            <field name="internal_length">5.898</field>
+            <field name="internal_width">2.352</field>
+            <field name="internal_height">2.393</field>
+            <field name="door_width">2.340</field>
+            <field name="door_height">2.280</field>
+            <field name="tare_weight">2300</field>
+            <field name="max_gross_weight">30480</field>
+        </record>
+        
+        <record id="container_20rf" model="dm.container.type">
+            <field name="name">20ft Refrigerated</field>
+            <field name="size_code">20</field>
+            <field name="type_code">RF</field>
+            <field name="iso_code">22R1</field>
+            <field name="external_length">6.058</field>
+            <field name="external_width">2.438</field>
+            <field name="external_height">2.591</field>
+            <field name="internal_length">5.456</field>
+            <field name="internal_width">2.290</field>
+            <field name="internal_height">2.267</field>
+            <field name="door_width">2.290</field>
+            <field name="door_height">2.264</field>
+            <field name="tare_weight">3080</field>
+            <field name="max_gross_weight">30480</field>
+            <field name="min_temperature">-30</field>
+            <field name="max_temperature">30</field>
+        </record>
+        
+        <!-- 40' Containers -->
+        <record id="container_40gp" model="dm.container.type">
+            <field name="name">40ft General Purpose</field>
+            <field name="size_code">40</field>
+            <field name="type_code">GP</field>
+            <field name="iso_code">42G1</field>
+            <field name="external_length">12.192</field>
+            <field name="external_width">2.438</field>
+            <field name="external_height">2.591</field>
+            <field name="internal_length">12.032</field>
+            <field name="internal_width">2.352</field>
+            <field name="internal_height">2.393</field>
+            <field name="door_width">2.340</field>
+            <field name="door_height">2.280</field>
+            <field name="tare_weight">3750</field>
+            <field name="max_gross_weight">32500</field>
+        </record>
+        
+        <record id="container_40hc" model="dm.container.type">
+            <field name="name">40ft High Cube</field>
+            <field name="size_code">40</field>
+            <field name="type_code">HC</field>
+            <field name="iso_code">45G1</field>
+            <field name="external_length">12.192</field>
+            <field name="external_width">2.438</field>
+            <field name="external_height">2.896</field>
+            <field name="internal_length">12.032</field>
+            <field name="internal_width">2.352</field>
+            <field name="internal_height">2.698</field>
+            <field name="door_width">2.340</field>
+            <field name="door_height">2.585</field>
+            <field name="tare_weight">3900</field>
+            <field name="max_gross_weight">32500</field>
+        </record>
+        
+        <record id="container_40rf" model="dm.container.type">
+            <field name="name">40ft Refrigerated High Cube</field>
+            <field name="size_code">40</field>
+            <field name="type_code">RF</field>
+            <field name="iso_code">45R1</field>
+            <field name="external_length">12.192</field>
+            <field name="external_width">2.438</field>
+            <field name="external_height">2.896</field>
+            <field name="internal_length">11.590</field>
+            <field name="internal_width">2.290</field>
+            <field name="internal_height">2.544</field>
+            <field name="door_width">2.290</field>
+            <field name="door_height">2.569</field>
+            <field name="tare_weight">4480</field>
+            <field name="max_gross_weight">32500</field>
+            <field name="min_temperature">-30</field>
+            <field name="max_temperature">30</field>
+        </record>
+        
+    </data>
+</odoo>

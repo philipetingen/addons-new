@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_dm_customer_pricelist_user,dm.customer.pricelist.user,model_dm_customer_pricelist,dm_base.group_dm_user,1,0,0,0
+access_dm_customer_pricelist_manager,dm.customer.pricelist.manager,model_dm_customer_pricelist,dm_base.group_dm_manager,1,1,1,1

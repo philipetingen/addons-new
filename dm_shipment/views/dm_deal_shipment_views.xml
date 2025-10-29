@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_dm_deal_form_shipment" model="ir.ui.view">
+        <field name="name">dm.deal.form.shipment</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_form"/>
+        <field name="arch" type="xml">
+            <field name="allocation_status" position="after">
+                <field name="shipment_allocated" invisible="1"/>
+            </field>
+            <div name="button_box" position="inside">
+                <button name="action_view_shipments" type="object" class="oe_stat_button" icon="fa-ship" invisible="shipment_count == 0">
+                    <field name="shipment_count" widget="statinfo" string="Shipments"/>
+                </button>
+            </div>
+            <header position="inside">
+                <button name="action_allocate_to_shipment" string="Allocate to Shipment" type="object" class="btn-primary"
+                        invisible="state not in ['confirmed', 'allocated', 'ready'] or shipment_allocated == True"/>
+            </header>
+        </field>
+    </record>
+</odoo>

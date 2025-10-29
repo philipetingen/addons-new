@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Template Selection Wizard Form View -->
+    <record id="view_dm_deal_template_selection_wizard_form" model="ir.ui.view">
+        <field name="name">dm.deal.template.selection.wizard.form</field>
+        <field name="model">dm.deal.template.selection.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Select Deal Template">
+                <!-- Header with info -->
+                <div class="alert alert-info" role="alert" style="margin-bottom: 10px;">
+                    <strong>Multiple Templates Match</strong><br/>
+                    Found <field name="template_count" readonly="1" class="oe_inline"/> matching templates for this deal.
+                    Please review the comparison below and select the most appropriate template.
+                </div>
+                
+                <!-- Hidden field for template list -->
+                <group>
+                    <field name="template_ids" invisible="1"/>
+                </group>
+                
+                <!-- Template Selection -->
+                <group>
+                    <field name="selected_template_id" 
+                           widget="radio" 
+                           options="{'horizontal': false}"
+                           required="1"/>
+                </group>
+                
+                <!-- Comparison Table -->
+                <notebook>
+                    <page string="Template Comparison">
+                        <field name="comparison_html" 
+                               readonly="1" 
+                               nolabel="1"/>
+                    </page>
+                </notebook>
+                
+                <!-- Action Buttons -->
+                <footer>
+                    <button name="action_apply_selected" 
+                            string="Apply Selected Template" 
+                            type="object" 
+                            class="btn-primary"
+                            icon="fa-check"/>
+                    <button name="action_skip" 
+                            string="Skip - Configure Manually" 
+                            type="object" 
+                            class="btn-secondary"
+                            icon="fa-times"/>
+                    <button string="Cancel" 
+                            class="btn-secondary" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Wizard Action -->
+    <record id="action_dm_deal_template_selection_wizard" model="ir.actions.act_window">
+        <field name="name">Select Deal Template</field>
+        <field name="res_model">dm.deal.template.selection.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">form</field>
+    </record>
+</odoo>

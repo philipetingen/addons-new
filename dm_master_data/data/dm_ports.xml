@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        
+        <!-- Major Seaports -->
+        <record id="port_shanghai" model="dm.port">
+            <field name="name">Shanghai</field>
+            <field name="code">CNSHA</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.cn"/>
+            <field name="city">Shanghai</field>
+            <field name="latitude">31.2304</field>
+            <field name="longitude">121.4737</field>
+            <field name="timezone">Asia/Shanghai</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_singapore" model="dm.port">
+            <field name="name">Singapore</field>
+            <field name="code">SGSIN</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.sg"/>
+            <field name="city">Singapore</field>
+            <field name="latitude">1.2655</field>
+            <field name="longitude">103.8186</field>
+            <field name="timezone">Asia/Singapore</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_rotterdam" model="dm.port">
+            <field name="name">Rotterdam</field>
+            <field name="code">NLRTM</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.nl"/>
+            <field name="city">Rotterdam</field>
+            <field name="latitude">51.9225</field>
+            <field name="longitude">4.4792</field>
+            <field name="timezone">Europe/Amsterdam</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_los_angeles" model="dm.port">
+            <field name="name">Los Angeles</field>
+            <field name="code">USLAX</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.us"/>
+            <field name="city">Los Angeles</field>
+            <field name="latitude">33.7406</field>
+            <field name="longitude">-118.2706</field>
+            <field name="timezone">America/Los_Angeles</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_dubai" model="dm.port">
+            <field name="name">Jebel Ali</field>
+            <field name="code">AEJEA</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.ae"/>
+            <field name="city">Dubai</field>
+            <field name="latitude">25.0075</field>
+            <field name="longitude">55.0519</field>
+            <field name="timezone">Asia/Dubai</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_hamburg" model="dm.port">
+            <field name="name">Hamburg</field>
+            <field name="code">DEHAM</field>
+            <field name="port_type">sea</field>
+            <field name="country_id" ref="base.de"/>
+            <field name="city">Hamburg</field>
+            <field name="latitude">53.5511</field>
+            <field name="longitude">9.9937</field>
+            <field name="timezone">Europe/Berlin</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <!-- Major Airports -->
+        <record id="port_hong_kong_air" model="dm.port">
+            <field name="name">Hong Kong International Airport</field>
+            <field name="code">HKHKG</field>
+            <field name="port_type">air</field>
+            <field name="country_id" ref="base.hk"/>
+            <field name="city">Hong Kong</field>
+            <field name="latitude">22.3080</field>
+            <field name="longitude">113.9185</field>
+            <field name="timezone">Asia/Hong_Kong</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+        <record id="port_frankfurt_air" model="dm.port">
+            <field name="name">Frankfurt Airport</field>
+            <field name="code">DEFRA</field>
+            <field name="port_type">air</field>
+            <field name="country_id" ref="base.de"/>
+            <field name="city">Frankfurt</field>
+            <field name="latitude">50.0379</field>
+            <field name="longitude">8.5622</field>
+            <field name="timezone">Europe/Berlin</field>
+            <field name="can_handle_reefer">True</field>
+            <field name="can_handle_dangerous">True</field>
+            <field name="has_customs">True</field>
+        </record>
+        
+    </data>
+</odoo>

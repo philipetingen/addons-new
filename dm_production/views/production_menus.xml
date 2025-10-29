@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ================================================================== -->
+    <!-- PRODUCTION MODULE - MENU STRUCTURE                                 -->
+    <!-- ================================================================== -->
+    
+    <!-- Root Menu -->
+    <menuitem id="menu_dm_production_root"
+              name="Production"
+              sequence="30"
+              web_icon="dm_production,static/description/icon.png"/>
+    
+    <!-- ================================================================== -->
+    <!-- PLANNING & ALLOCATION SUBMENU                                      -->
+    <!-- ================================================================== -->
+    
+    <menuitem id="menu_production_planning"
+              name="Planning &amp; Allocation"
+              parent="menu_dm_production_root"
+              sequence="10"/>
+    
+    <menuitem id="menu_dm_unallocated_deals"
+              name="Unallocated Deals"
+              parent="menu_production_planning"
+              action="action_dm_deal_unallocated"
+              sequence="10"/>
+    
+    <menuitem id="menu_dm_production_runs"
+              name="Production Runs"
+              parent="menu_production_planning"
+              action="action_dm_production_run"
+              sequence="20"/>
+    
+    <!-- Future: Capacity Timeline, Allocation Dashboard, etc. -->
+    
+</odoo>

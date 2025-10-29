@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ========================================================================
+         TREE VIEW
+         ======================================================================== -->
+    
+    <record id="view_dm_deal_tree" model="ir.ui.view">
+        <field name="name">dm.deal.tree</field>
+        <field name="model">dm.deal</field>
+        <field name="arch" type="xml">
+            <tree string="Deals" 
+                  decoration-info="state == 'draft'"
+                  decoration-primary="state == 'validated'"
+                  decoration-warning="state in ['confirmed', 'partial']"
+                  decoration-success="state in ['allocated', 'ready']"
+                  decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="customer_id"/>
+                <field name="customer_po_number"/>
+                <field name="po_date"/>
+                <field name="rts_current" optional="show"/>
+                <field name="eta_current" optional="show"/>
+                <field name="total_sale_amount" sum="Total" optional="show"/>
+                <field name="margin_percentage" optional="show"/>
+                <field name="total_containers" optional="show" sum="Total"/>
+                <field name="total_teu" optional="show" sum="Total TEU"/>
+                <field name="allocation_status" widget="badge" optional="show"/>
+                <field name="state" widget="badge" 
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'validated'"
+                       decoration-warning="state in ['confirmed', 'partial']"
+                       decoration-success="state in ['allocated', 'ready', 'delivered', 'paid']"
+                       decoration-muted="state == 'cancelled'"/>
+            </tree>
+        </field>
+    </record>
+    
+    
+    <!-- ========================================================================
+         FORM VIEW
+         ======================================================================== -->
+    
+    <record id="view_dm_deal_form" model="ir.ui.view">
+        <field name="name">dm.deal.form</field>
+        <field name="model">dm.deal</field>
+        <field name="arch" type="xml">
+            <form string="Deal">
+                <header>
+                    <!-- Hidden fields for conditions (MUST be in header or sheet) -->
+                    <field name="state" invisible="1"/>
+                    <field name="template_selection_pending" invisible="1"/>
+                    <field name="so_confirmed" invisible="1"/>
+                    <field name="po_confirmed" invisible="1"/>
+                    
+                    <!-- Status bar -->
+                    <field name="state" widget="statusbar" statusbar_visible="draft,validated,confirmed,allocated,ready,shipping,delivered"/>
+                    
+                    <!-- State transition buttons -->
+                    <button name="action_validate" 
+                            string="Validate" 
+                            type="object" 
+                            invisible="state != 'draft'" 
+                            class="oe_highlight"
+                            help="Create SO and PO in draft state"/>
+                    
+                    <button name="action_confirm" 
+                            string="Confirm" 
+                            type="object" 
+                            invisible="state != 'validated'" 
+                            class="oe_highlight"
+                            help="Confirm deal after SO/PO are confirmed"/>
+                    
+                    <!-- Template selection button (when pending) -->
+                    <button name="action_select_template" 
+                            string="Select Template" 
+                            type="object" 
+                            invisible="not template_selection_pending"
+                            class="btn-warning"
+                            icon="fa-warning"
+                            help="Multiple templates match this deal - click to select one"/>
+                    
+                    <!-- Cancel button -->
+                    <button name="action_cancel" 
+                            string="Cancel" 
+                            type="object" 
+                            invisible="state in ['cancelled', 'delivered']"
+                            confirm="Are you sure you want to cancel this deal?"/>
+                </header>
+                
+                <sheet>
+                    <!-- Template Selection Pending Alert -->
+                    <div class="alert alert-warning" 
+                         role="alert" 
+                         invisible="not template_selection_pending"
+                         style="margin-bottom: 15px;">
+                        <strong>⚠️ Action Required:</strong> Multiple deal templates match this product. Please select the appropriate template.
+                        <button name="action_select_template" 
+                                string="Select Template Now" 
+                                type="object" 
+                                class="btn btn-sm btn-warning" 
+                                style="margin-left: 10px;"/>
+                    </div>
+
+                    <!-- Hidden fields for conditions -->
+                    <field name="invoice_split" invisible="1"/>
+                    <field name="allocation_status" invisible="1"/>
+                    <field name="sale_incoterm_id" invisible="1"/>
+                    <field name="purchase_incoterm_id" invisible="1"/>
+
+                    <!-- Button Box -->
+                    <div class="oe_button_box" name="button_box">
+                        <!-- Sales Orders -->
+                        <button name="action_view_sale_orders" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-file-text-o">
+                            <field name="so_count" widget="statinfo" string="Sales Orders"/>
+                        </button>
+                        
+                        <!-- Purchase Orders -->
+                        <button name="action_view_purchase_orders" 
+                                type="object" 
+                                class="oe_stat_button" 
+                                icon="fa-shopping-cart">
+                            <field name="po_count" widget="statinfo" string="Purchase Orders"/>
+                        </button>
+                        
+                    </div>
+                    
+                    <widget name="web_ribbon" title="Cancelled" bg_color="bg-danger" invisible="state != 'cancelled'"/>
+                    
+                    <!-- SPRINT 1: Confirmation Status Alert -->
+                    <div class="alert alert-info" role="alert" invisible="state != 'validated'">
+                        <strong>⏳ Waiting for SO/PO Confirmation</strong>
+                        <p class="mb-0">
+                            <field name="confirmation_status_display" class="fw-bold"/>
+                            <br/>Deal will be automatically confirmed once both Sales Order and Purchase Order are confirmed.
+                        </p>
+                    </div>
+                    
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                        <h2>
+                            <field name="customer_po_number" 
+                                   placeholder="Customer PO Number..." 
+                                   readonly="state not in ['draft']"
+                                   required="1"/>
+                        </h2>
+                    </div>
+                    
+                    <group>
+                        <group string="Customer Information">
+                            <field name="customer_id" 
+                                   readonly="state not in ['draft']"
+                                   required="1"/>
+                            <field name="po_date" 
+                                   readonly="state not in ['draft']"
+                                   required="1"/>
+                            <field name="currency_id" 
+                                   readonly="state not in ['draft']"
+                                   groups="base.group_multi_currency"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="company_currency_id" invisible="1"/>
+                        </group>
+                        <group string="Status">
+                            <field name="validation_date" readonly="1" invisible="state == 'draft'"/>
+                            <field name="confirmation_date" readonly="1" invisible="state in ['draft', 'validated']"/>
+                            <field name="allocation_status" widget="badge"/>
+                            <field name="supplier_id" 
+                                   readonly="state not in ['draft']"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <!-- Products Tab -->
+                        <page string="Products">
+                            <field name="line_ids" 
+                                   readonly="state not in ['draft']"
+                                   context="{'tree_view_ref': 'dm_deal.view_dm_deal_line_tree'}"/>
+                            
+                            <group class="oe_subtotal_footer oe_right" colspan="2">
+                                <field name="total_sale_amount" widget="monetary"/>
+                                <field name="total_purchase_amount" widget="monetary"/>
+                                <field name="margin_amount" widget="monetary"/>
+                                <field name="margin_percentage" widget="percentage"/>
+                                <div class="oe_subtotal_footer_separator"/>
+                                <field name="total_containers" string="Total Containers"/>
+                                <field name="total_teu" string="Total TEU"/>
+                                <field name="container_summary" readonly="1" class="text-muted" invisible="total_containers == 0"/>
+                            </group>
+                        </page>
+                        
+                        <!-- Commercial Terms Tab -->
+                        <page string="Commercial Terms">
+                            <group>
+                                <group string="Sales Terms (to Customer)">
+                                    <field name="sale_payment_term_id" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="Payment terms for customer..."/>
+                                    <field name="sale_incoterm_id" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="Delivery terms for customer..."/>
+                                    <field name="sale_incoterm_location" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="e.g., Los Angeles Port"
+                                           invisible="not sale_incoterm_id"/>
+                                </group>
+                                <group string="Purchase Terms (from Supplier)">
+                                    <field name="purchase_payment_term_id" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="Payment terms from supplier..."/>
+                                    <field name="purchase_incoterm_id" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="Delivery terms from supplier..."/>
+                                    <field name="purchase_incoterm_location" 
+                                           readonly="state not in ['draft']"
+                                           placeholder="e.g., Shanghai Port"
+                                           invisible="not purchase_incoterm_id"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Ports">
+                                    <field name="loading_port_id" 
+                                           readonly="state not in ['draft']"/>
+                                    <field name="discharge_port_id" 
+                                           readonly="state not in ['draft']"/>
+                                </group>
+                                <group string="Invoice Configuration">
+                                    <field name="invoice_split" 
+                                           readonly="state not in ['draft']"/>
+                                    <field name="product_invoice_percentage" 
+                                           readonly="state not in ['draft']"
+                                           invisible="not invoice_split"/>
+                                    <field name="service_invoice_percentage" 
+                                           readonly="1"
+                                           invisible="not invoice_split"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <!-- Milestone Timeline Tab -->
+                        <page string="Milestone Timeline" name="milestone_timeline">
+                            <group>
+                                <div class="alert alert-info" role="alert">
+                                    <p class="mb-0">
+                                        <strong>📅 Milestone Tracking</strong><br/>
+                                        Track key operational dates through three stages:
+                                        <strong>Requested</strong> (initial target) → 
+                                        <strong>Current</strong> (updated forecast) → 
+                                        <strong>Actual</strong> (confirmed reality)
+                                    </p>
+                                </div>
+                            </group>
+                            
+                            <!-- Milestone Matrix Table -->
+                            <group col="4" class="o_label_nowrap" string="Milestone Matrix">
+                                <!-- Header Row -->
+                                <group string="Milestone" colspan="1"/>
+                                <group string="Requested" colspan="1"/>
+                                <group string="Current / Planned" colspan="1"/>
+                                <group string="Actual" colspan="1"/>
+                            </group>
+                            
+                            <separator string="Milestone 1: Order Confirmation"/>
+                            <group col="4">
+                                <label for="confirmation_date" string="Order Confirmed"/>
+                                <div colspan="3">
+                                    <field name="confirmation_date" readonly="1"/>
+                                    <span class="text-muted" invisible="confirmation_date"> (Set automatically when deal confirmed)</span>
+                                </div>
+                            </group>
+                            
+                            <separator string="Milestone 2: Production Start"/>
+                            <group col="4">
+                                <label for="production_start_requested" string="Production Start"/>
+                                <field name="production_start_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <div>
+                                    <field name="production_start_current" placeholder="Current..."/>
+                                    <div class="text-muted" invisible="not production_start_calculated">
+                                        <small>📊 Calculated: <field name="production_start_calculated" readonly="1" class="text-info"/></small>
+                                    </div>
+                                </div>
+                                <field name="production_start_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="production_start_actual"/>
+                            </group>
+                            
+                            <separator string="Milestone 3: Ready to Ship (RTS)"/>
+                            <group col="4">
+                                <label for="rts_requested" string="Ready to Ship"/>
+                                <field name="rts_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <field name="rts_current" placeholder="Current..."/>
+                                <field name="rts_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="rts_actual"/>
+                            </group>
+                            
+                            <separator string="Milestone 4: Loading at Factory"/>
+                            <group col="4">
+                                <label for="loading_requested" string="Loading"/>
+                                <field name="loading_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <field name="loading_current" placeholder="Current..."/>
+                                <field name="loading_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="loading_actual"/>
+                            </group>
+                            
+                            <separator string="Milestone 5: Vessel Departure (ETD)"/>
+                            <group col="4">
+                                <label for="etd_requested" string="ETD"/>
+                                <field name="etd_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <field name="etd_current" placeholder="Current..."/>
+                                <field name="etd_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="etd_actual"/>
+                            </group>
+                            
+                            <separator string="Milestone 6: Port Arrival (ETA)"/>
+                            <group col="4">
+                                <label for="eta_requested" string="ETA"/>
+                                <field name="eta_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <field name="eta_current" placeholder="Current..."/>
+                                <field name="eta_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="eta_actual"/>
+                            </group>
+                            
+                            <separator string="Milestone 7: Final Delivery"/>
+                            <group col="4">
+                                <label for="delivery_requested" string="Delivery"/>
+                                <field name="delivery_requested" 
+                                       readonly="state not in ['draft', 'validated', 'confirmed']"
+                                       placeholder="Requested..."/>
+                                <field name="delivery_current" placeholder="Current..."/>
+                                <field name="delivery_actual" 
+                                       readonly="1" 
+                                       placeholder="Actual..."
+                                       decoration-success="delivery_actual"/>
+                            </group>
+                            
+                            <group>
+                                <div class="alert alert-warning" role="alert" invisible="state in ['draft', 'validated']">
+                                    <p class="mb-0">
+                                        <strong>⚠️ Note:</strong> Actual dates are set automatically by production and shipment modules.
+                                        Do not edit these manually unless correcting an error.
+                                    </p>
+                                </div>
+                            </group>
+                        </page>
+                        
+                        <!-- Template Tab -->
+                        <page string="Template" invisible="state != 'draft'">
+                            <group>
+                                <field name="template_id" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+    
+    
+    <!-- ========================================================================
+         SEARCH VIEW
+         ======================================================================== -->
+    
+    <record id="view_dm_deal_search" model="ir.ui.view">
+        <field name="name">dm.deal.search</field>
+        <field name="model">dm.deal</field>
+        <field name="arch" type="xml">
+            <search string="Search Deals">
+                <field name="name"/>
+                <field name="customer_id" operator="child_of"/>
+                <field name="customer_po_number"/>
+                <field name="supplier_id" operator="child_of"/>
+                
+                <!-- State Filters -->
+                <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
+                <filter name="validated" string="Validated" domain="[('state', '=', 'validated')]"/>
+                <filter name="confirmed" string="Confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter name="allocated" string="Allocated" domain="[('state', '=', 'allocated')]"/>
+                <filter name="ready" string="Ready" domain="[('state', '=', 'ready')]"/>
+                
+                <separator/>
+                
+                <!-- Allocation Filters -->
+                <filter name="unallocated" string="Not Allocated" domain="[('allocation_status', '=', 'unallocated')]"/>
+                <filter name="partial_alloc" string="Partially Allocated" domain="[('allocation_status', '=', 'partial')]"/>
+                <filter name="full_alloc" string="Fully Allocated" domain="[('allocation_status', '=', 'allocated')]"/>
+                
+                <separator/>
+                
+                <!-- Status Filters -->
+                <filter name="awaiting_confirmation" string="⏳ Awaiting SO/PO Confirmation" 
+                        domain="[('state', '=', 'validated')]"/>
+                
+                <separator/>
+                
+                <!-- Date Filters -->
+                <filter name="this_month" string="This Month" 
+                        domain="[('po_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                
+                <!-- Group By -->
+                <group expand="0" string="Group By">
+                    <filter name="group_by_customer" string="Customer" context="{'group_by': 'customer_id'}"/>
+                    <filter name="group_by_supplier" string="Supplier" context="{'group_by': 'supplier_id'}"/>
+                    <filter name="group_by_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_by_allocation" string="Allocation" context="{'group_by': 'allocation_status'}"/>
+                    <filter name="group_by_month" string="PO Month" context="{'group_by': 'po_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+    
+    <!-- ========================================================================
+         ACTION
+         ======================================================================== -->
+    
+    <record id="action_dm_deal" model="ir.actions.act_window">
+        <field name="name">Deals</field>
+        <field name="res_model">dm.deal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_draft': 1, 'search_default_validated': 1, 'search_default_confirmed': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first deal
+            </p>
+            <p>
+                Deals manage the entire flow from customer PO to delivery, including production and shipment allocation.
+            </p>
+        </field>
+    </record>
+    
+</odoo>
