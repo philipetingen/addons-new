@@ -8,13 +8,14 @@
         <field name="inherit_id" ref="dm_deal.view_dm_deal_form"/>
         <field name="arch" type="xml">
             
-            <!-- Add hidden field for conditions -->
-            <field name="allocation_status" position="after">
+            <!-- Add hidden fields near other hidden fields in sheet -->
+            <field name="is_locked_for_production" position="after">
                 <field name="production_allocated" invisible="1"/>
+                <field name="production_count" invisible="1"/>
             </field>
             
             <!-- Add Production Smart Button -->
-            <div name="button_box" position="inside">
+            <xpath expr="//div[@name='button_box']" position="inside">
                 <button name="action_view_production_runs" 
                         type="object" 
                         class="oe_stat_button" 
@@ -22,17 +23,17 @@
                         invisible="production_count == 0">
                     <field name="production_count" widget="statinfo" string="Production"/>
                 </button>
-            </div>
+            </xpath>
             
             <!-- Add Allocate to Production Button -->
-            <header position="inside">
+            <xpath expr="//header" position="inside">
                 <button name="action_allocate_to_production" 
                         string="Allocate to Production" 
                         type="object" 
                         class="btn-primary"
                         invisible="state not in ['confirmed', 'allocated', 'ready'] or production_allocated == True"
                         help="Allocate this deal to a production run"/>
-            </header>
+            </xpath>
             
         </field>
     </record>

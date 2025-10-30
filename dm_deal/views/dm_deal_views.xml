@@ -17,6 +17,7 @@
                   decoration-muted="state == 'cancelled'">
                 <field name="name"/>
                 <field name="customer_id"/>
+				<field name="product_ids" widget="many2many_tags"/>
                 <field name="customer_po_number"/>
                 <field name="po_date"/>
                 <field name="rts_current" optional="show"/>
@@ -88,7 +89,47 @@
                             confirm="Are you sure you want to cancel this deal?"/>
                 </header>
                 
+                <!-- ============================================================ -->
+                <!-- LOCK WARNING BANNERS -->
+                <!-- ============================================================ -->
+                
+                <!-- Production Lock Warning -->
+                <div class="alert alert-warning" 
+                     role="alert"
+                     invisible="not is_locked_for_production"
+                     style="margin-bottom: 0;">
+                    <i class="fa fa-lock"/> 
+                    <strong>Production Lock:</strong>
+                    This deal is locked by <field name="production_lock_reason" readonly="1" class="fw-bold"/>.
+                    Production-critical fields cannot be modified.
+                    <button name="action_unlock_production" 
+                            type="object" 
+                            string="Unlock (Cancel Allocation)" 
+                            class="btn-link"
+                            confirm="This will cancel the production allocation and return the deal to 'confirmed' state. Continue?"/>
+                </div>
+                
+                <!-- Shipment Lock Warning -->
+                <div class="alert alert-info" 
+                     role="alert"
+                     invisible="not is_locked_for_shipment"
+                     style="margin-bottom: 0;">
+                    <i class="fa fa-ship"/> 
+                    <strong>Shipment Lock:</strong>
+                    This deal is locked by <field name="shipment_lock_reason" readonly="1" class="fw-bold"/>.
+                    Logistics fields cannot be modified.
+                    <button name="action_unlock_shipment" 
+                            type="object"
+                            string="Unlock (Cancel Allocation)"
+                            class="btn-link"
+                            confirm="This will cancel the shipment allocation. Continue?"/>
+                </div>
+                
                 <sheet>
+                    <!-- Hidden fields for lock checks -->
+                    <field name="is_locked_for_production" invisible="1"/>
+                    <field name="is_locked_for_shipment" invisible="1"/>
+                
                     <!-- Template Selection Pending Alert -->
                     <div class="alert alert-warning" 
                          role="alert" 
@@ -146,7 +187,7 @@
                         <h2>
                             <field name="customer_po_number" 
                                    placeholder="Customer PO Number..." 
-                                   readonly="state not in ['draft']"
+                                   readonly="is_locked_for_shipment or state not in ['draft']"
                                    required="1"/>
                         </h2>
                     </div>
@@ -169,8 +210,8 @@
                             <field name="validation_date" readonly="1" invisible="state == 'draft'"/>
                             <field name="confirmation_date" readonly="1" invisible="state in ['draft', 'validated']"/>
                             <field name="allocation_status" widget="badge"/>
-                            <field name="supplier_id" 
-                                   readonly="state not in ['draft']"/>
+							<field name="supplier_id" 
+													   readonly="is_locked_for_production or state not in ['draft']"/>
                         </group>
                     </group>
                     
@@ -197,9 +238,8 @@
                         <page string="Commercial Terms">
                             <group>
                                 <group string="Sales Terms (to Customer)">
-                                    <field name="sale_payment_term_id" 
-                                           readonly="state not in ['draft']"
-                                           placeholder="Payment terms for customer..."/>
+									<field name="sale_payment_term_id"
+										   readonly="is_locked_for_shipment or state not in ['draft', 'validated']"/>
                                     <field name="sale_incoterm_id" 
                                            readonly="state not in ['draft']"
                                            placeholder="Delivery terms for customer..."/>
@@ -209,9 +249,8 @@
                                            invisible="not sale_incoterm_id"/>
                                 </group>
                                 <group string="Purchase Terms (from Supplier)">
-                                    <field name="purchase_payment_term_id" 
-                                           readonly="state not in ['draft']"
-                                           placeholder="Payment terms from supplier..."/>
+									<field name="purchase_payment_term_id"
+										   readonly="is_locked_for_production or state not in ['draft', 'validated']"/>
                                     <field name="purchase_incoterm_id" 
                                            readonly="state not in ['draft']"
                                            placeholder="Delivery terms from supplier..."/>
@@ -223,10 +262,10 @@
                             </group>
                             <group>
                                 <group string="Ports">
-                                    <field name="loading_port_id" 
-                                           readonly="state not in ['draft']"/>
-                                    <field name="discharge_port_id" 
-                                           readonly="state not in ['draft']"/>
+									<field name="loading_port_id"
+															   readonly="is_locked_for_shipment or state not in ['draft', 'validated', 'confirmed']"/>
+									<field name="discharge_port_id"
+															   readonly="is_locked_for_shipment or state not in ['draft', 'validated', 'confirmed']"/>
                                 </group>
                                 <group string="Invoice Configuration">
                                     <field name="invoice_split" 
@@ -297,7 +336,8 @@
                                 <field name="rts_requested" 
                                        readonly="state not in ['draft', 'validated', 'confirmed']"
                                        placeholder="Requested..."/>
-                                <field name="rts_current" placeholder="Current..."/>
+								<field name="rts_current"
+									   readonly="is_locked_for_production or state not in ['draft', 'validated', 'confirmed']"/>
                                 <field name="rts_actual" 
                                        readonly="1" 
                                        placeholder="Actual..."

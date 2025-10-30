@@ -9,6 +9,7 @@
                 <sheet>
                     <!-- Hidden fields for conditions -->
                     <field name="deal_state" invisible="1"/>
+                    <field name="deal_id" invisible="1"/>
                     
                     <group>
                         <group string="Product">
@@ -19,6 +20,7 @@
                                    domain="[('product_id', '=', product_id)]"
                                    required="1"/>
                             <field name="packaging_uom_id" readonly="1"/>
+                            <field name="supplier_id" readonly="1"/>
                         </group>
                         
                         <group string="Quantities">
@@ -89,6 +91,7 @@
                     <group string="Progress Tracking" invisible="deal_state == 'draft'">
                         <group>
                             <field name="quantity_produced" readonly="1"/>
+                            <field name="production_status" widget="badge" readonly="1"/>
                             <field name="quantity_loaded" readonly="1"/>
                             <field name="quantity_invoiced" readonly="1"/>
                         </group>
@@ -106,120 +109,131 @@
     </record>
     
     <!-- Deal Line Tree View (for inline editing in deal form) -->
-	<record id="view_dm_deal_line_tree" model="ir.ui.view">
-		<field name="name">dm.deal.line.tree</field>
-		<field name="model">dm.deal.line</field>
-		<field name="arch" type="xml">
-			<tree string="Deal Lines" 
-				  editable="bottom"
-				  decoration-success="production_progress == 100"
-				  decoration-warning="production_progress &gt; 0 and production_progress &lt; 100">
-				
-				<!-- Hidden fields for conditions -->
-				<field name="entry_mode" invisible="1"/>
-				<field name="deal_id" invisible="1"/>
-				<field name="deal_state" invisible="1"/>
-				<field name="packaging_uom_id" invisible="1"/>
-				
-				<field name="sequence" widget="handle" width="30px"/>
-				
-				<!-- Customer code first for quick entry -->
-				<field name="customer_product_code" placeholder="Customer code..." width="120px"/>
-				
-				<field name="product_id" required="1" width="200px"/>
-				<field name="product_packaging_id" 
-					   domain="[('product_id', '=', product_id)]"
-					   required="1"
-					   width="120px"/>
-				
-				<!-- ADD SUPPLIER HERE -->
-				<field name="supplier_id" optional="show" width="150px"/>
-				
-				<!-- Entry mode toggle -->
-				<field name="entry_mode" widget="radio" width="80px"/>
-				
-				<!-- Package quantity -->
-				<field name="quantity_packaging" 
-					   readonly="entry_mode == 'kg'"
-					   required="entry_mode == 'pkg'"
-					   force_save="1"
-					   sum="Total"
-					   width="100px"/>
-				
-				<!-- Weight -->
-				<field name="weight" 
-					   readonly="entry_mode == 'pkg'"
-					   required="entry_mode == 'kg'"
-					   force_save="1"
-					   sum="Total Weight"
-					   width="100px"/>
-				
-				<!-- Reference fields -->
-				<field name="quantity_units" optional="hide" readonly="1" sum="Total Units" width="80px"/>
-				
-				<!-- Pricing -->
-				<field name="price_packaging_sale" 
-					   widget="monetary"
-					   required="1"
-					   width="120px"/>
-					   
-				<field name="price_per_kg_sale" 
-					   readonly="1"
-					   widget="monetary"
-					   optional="show"
-					   width="100px"/>
-					   
-				<field name="amount_sale" 
-					   readonly="1" 
-					   widget="monetary"
-					   sum="Total"
-					   width="120px"/>
-				
-				<field name="price_packaging_purchase" 
-					   widget="monetary"
-					   optional="show"
-					   width="120px"/>
-					   
-				<field name="amount_purchase" 
-					   readonly="1" 
-					   widget="monetary"
-					   optional="show"
-					   sum="Total"
-					   width="120px"/>
-				
-				<field name="margin_percentage" 
-					   readonly="1" 
-					   widget="percentage"
-					   optional="show"
-					   width="80px"/>
-				
-				<!-- Container calculations -->
-				<field name="containers_required" 
-					   optional="show"
-					   sum="Total"
-					   width="90px"/>
-				
-				<field name="container_calculation_method" 
-					   optional="hide"
-					   widget="badge"
-					   decoration-info="container_calculation_method == 'packaging'"
-					   decoration-success="container_calculation_method == 'volume'"
-					   decoration-warning="container_calculation_method == 'weight'"
-					   decoration-muted="container_calculation_method == 'manual'"
-					   width="90px"/>
-				
-				<field name="container_teu"
-					   optional="show"
-					   readonly="1"
-					   sum="Total TEU"
-					   width="80px"/>
-				
-				<field name="container_type_id" optional="show" width="100px"/>
-				<field name="production_progress" widget="progressbar" optional="show" width="100px"/>
-				
-				<!-- Customer description (optional) -->
-				<field name="customer_product_description" optional="hide" width="150px"/>
-			</tree>
-		</field>
-	</record>
+    <record id="view_dm_deal_line_tree" model="ir.ui.view">
+        <field name="name">dm.deal.line.tree</field>
+        <field name="model">dm.deal.line</field>
+        <field name="arch" type="xml">
+            <tree string="Deal Lines" 
+                  editable="bottom"
+                  decoration-success="production_status == 'complete'"
+                  decoration-warning="production_status == 'partial'">
+                
+                <!-- Hidden fields for conditions -->
+                <field name="entry_mode" invisible="1"/>
+                <field name="deal_id" invisible="1"/>
+                <field name="deal_state" invisible="1"/>
+                <field name="packaging_uom_id" invisible="1"/>
+                
+                <field name="sequence" widget="handle" width="30px"/>
+                
+                <!-- Customer code first for quick entry -->
+                <field name="customer_product_code" placeholder="Customer code..." width="120px"/>
+                
+                <field name="product_id" required="1" width="200px"/>
+                <field name="product_packaging_id" 
+                       domain="[('product_id', '=', product_id)]"
+                       required="1"
+                       width="120px"/>
+                
+                <!-- Supplier -->
+                <field name="supplier_id" optional="show" readonly="1" width="150px"/>
+                
+                <!-- Entry mode toggle -->
+                <field name="entry_mode" widget="radio" width="80px"/>
+                
+                <!-- Package quantity -->
+                <field name="quantity_packaging" 
+                       readonly="entry_mode == 'kg'"
+                       required="entry_mode == 'pkg'"
+                       force_save="1"
+                       sum="Total"
+                       width="100px"/>
+                
+                <!-- Weight -->
+                <field name="weight" 
+                       readonly="entry_mode == 'pkg'"
+                       required="entry_mode == 'kg'"
+                       force_save="1"
+                       sum="Total Weight"
+                       width="100px"/>
+                
+                <!-- Production tracking -->
+                <field name="quantity_produced" 
+                       readonly="1" 
+                       optional="show"
+                       width="100px"/>
+                <field name="production_status" 
+                       widget="badge" 
+                       readonly="1"
+                       optional="show"
+                       width="100px"/>
+                
+                <!-- Reference fields -->
+                <field name="quantity_units" optional="hide" readonly="1" sum="Total Units" width="80px"/>
+                
+                <!-- Pricing -->
+                <field name="price_packaging_sale" 
+                       widget="monetary"
+                       required="1"
+                       width="120px"/>
+                       
+                <field name="price_per_kg_sale" 
+                       readonly="1"
+                       widget="monetary"
+                       optional="show"
+                       width="100px"/>
+                       
+                <field name="amount_sale" 
+                       readonly="1" 
+                       widget="monetary"
+                       sum="Total"
+                       width="120px"/>
+                
+                <field name="price_packaging_purchase" 
+                       widget="monetary"
+                       optional="show"
+                       width="120px"/>
+                       
+                <field name="amount_purchase" 
+                       readonly="1" 
+                       widget="monetary"
+                       optional="show"
+                       sum="Total"
+                       width="120px"/>
+                
+                <field name="margin_percentage" 
+                       readonly="1" 
+                       widget="percentage"
+                       optional="show"
+                       width="80px"/>
+                
+                <!-- Container calculations -->
+                <field name="containers_required" 
+                       optional="show"
+                       sum="Total"
+                       width="90px"/>
+                
+                <field name="container_calculation_method" 
+                       optional="hide"
+                       widget="badge"
+                       decoration-info="container_calculation_method == 'packaging'"
+                       decoration-success="container_calculation_method == 'volume'"
+                       decoration-warning="container_calculation_method == 'weight'"
+                       decoration-muted="container_calculation_method == 'manual'"
+                       width="90px"/>
+                
+                <field name="container_teu"
+                       optional="show"
+                       readonly="1"
+                       sum="Total TEU"
+                       width="80px"/>
+                
+                <field name="container_type_id" optional="show" width="100px"/>
+                <field name="production_progress" widget="progressbar" optional="show" width="100px"/>
+                
+                <!-- Customer description (optional) -->
+                <field name="customer_product_description" optional="hide" width="150px"/>
+            </tree>
+        </field>
+    </record>
 </odoo>

@@ -150,6 +150,26 @@ class DmDealLine(models.Model):
     )
     
     # =========================================================================
+    # PRODUCTION TRACKING
+    # =========================================================================
+    
+    quantity_produced = fields.Float(
+        string='Qty Produced',
+        digits=(16, 3),
+        readonly=True,
+        help='Actual quantity produced (set by production module)'
+    )
+    
+    production_status = fields.Selection([
+        ('not_started', 'Not Started'),
+        ('partial', 'Partial'),
+        ('complete', 'Complete')
+    ], string='Production Status',
+        compute='_compute_production_status',
+        store=True
+    )
+    
+    # =========================================================================
     # SALES PRICING (6-decimal precision)
     # =========================================================================
 
@@ -640,6 +660,17 @@ class DmDealLine(models.Model):
             
             # Set final warning
             line.container_calculation_warning = " • ".join(warnings) if warnings else False
+    
+    @api.depends('quantity_packaging', 'quantity_produced')
+    def _compute_production_status(self):
+        """Compute production completion status"""
+        for line in self:
+            if not line.quantity_produced or line.quantity_produced == 0:
+                line.production_status = 'not_started'
+            elif line.quantity_produced < line.quantity_packaging:
+                line.production_status = 'partial'
+            else:
+                line.production_status = 'complete'
     
     # =========================================================================
     # WEIGHT ENTRY MODE METHODS - Sprint 2.4 (SYNCHRONIZED WITH WIZARD)
@@ -1174,3 +1205,102 @@ class DmDealLine(models.Model):
             name = f"{line.product_id.display_name} - {line.quantity_packaging:.2f} {line.packaging_uom_id.name if line.packaging_uom_id else 'pkg'}"
             result.append((line.id, name))
         return result
+
+    # ============================================================
+    # UNIVERSAL DEAL FIELDS MIXIN
+    # ============================================================
+        
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Trigger deal product_ids recomputation on line creation."""
+        lines = super().create(vals_list)
+        deals = lines.mapped('deal_id')
+        if deals:
+            deals._compute_product_ids()
+        return lines
+    
+    def write(self, vals):
+        """Validate lock constraints and trigger deal product_ids recomputation"""
+        
+        # LINE-LEVEL PRODUCTION LOCKS
+        LINE_PRODUCTION_LOCKED = {
+            'product_id', 'product_packaging_id', 'quantity_packaging', 
+            'price_packaging_sale', 'price_packaging_purchase'
+        }
+        
+        # LINE-LEVEL SHIPMENT LOCKS  
+        LINE_SHIPMENT_LOCKED = {
+            'product_packaging_id', 'quantity_packaging'
+        }
+        
+        for line in self:
+            if not line.deal_id:
+                continue
+            
+            # Check production lock
+            if line.deal_id.is_locked_for_production:
+                attempted_pr_changes = set(vals.keys()) & LINE_PRODUCTION_LOCKED
+                if attempted_pr_changes:
+                    raise UserError(_(
+                        "Cannot modify line fields while deal is locked by %s\n\n"
+                        "Locked fields: %s\n\n"
+                        "Product: %s\n\n"
+                        "To edit: Cancel allocation → Modify deal → Reallocate"
+                    ) % (
+                        line.deal_id.production_lock_reason,
+                        ', '.join(attempted_pr_changes),
+                        line.product_id.display_name
+                    ))
+            
+            # Check shipment lock
+            if line.deal_id.is_locked_for_shipment:
+                attempted_ship_changes = set(vals.keys()) & LINE_SHIPMENT_LOCKED
+                if attempted_ship_changes:
+                    raise UserError(_(
+                        "Cannot modify line fields while deal is locked by %s\n\n"
+                        "Locked fields: %s\n\n"
+                        "Product: %s\n\n"
+                        "To edit: Cancel allocation → Modify deal → Reallocate"
+                    ) % (
+                        line.deal_id.shipment_lock_reason,
+                        ', '.join(attempted_ship_changes),
+                        line.product_id.display_name
+                    ))
+        
+        deals = self.mapped('deal_id')
+        res = super().write(vals)
+        if 'product_id' in vals and deals:
+            deals._compute_product_ids()
+        return res
+    
+    def unlink(self):
+        """Prevent line deletion when deal is locked"""
+        for line in self:
+            if line.deal_id:
+                if line.deal_id.is_locked_for_production:
+                    raise UserError(_(
+                        "Cannot delete lines while deal is locked by %s\n\n"
+                        "Product: %s\n\n"
+                        "To delete: Cancel allocation → Modify deal → Reallocate"
+                    ) % (line.deal_id.production_lock_reason, line.product_id.display_name))
+                
+                if line.deal_id.is_locked_for_shipment:
+                    raise UserError(_(
+                        "Cannot delete lines while deal is locked by %s\n\n"
+                        "Product: %s\n\n"
+                        "To delete: Cancel allocation → Modify deal → Reallocate"
+                    ) % (line.deal_id.shipment_lock_reason, line.product_id.display_name))
+        
+        deals = self.mapped('deal_id')
+        res = super().unlink()
+        if deals:
+            deals._compute_product_ids()
+        return res
+    
+    def unlink(self):
+        """Trigger deal product_ids recomputation on line deletion."""
+        deals = self.mapped('deal_id')
+        res = super().unlink()
+        if deals:
+            deals._compute_product_ids()
+        return res      

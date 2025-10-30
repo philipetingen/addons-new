@@ -51,6 +51,7 @@ class DmProductionRun(models.Model):
         ('draft', 'Draft'),
         ('confirmed', 'Confirmed'),
         ('production', 'In Production'),
+        ('qc_pending', 'QC Pending'),
         ('ready', 'Ready to Ship'),
         ('done', 'Done'),
         ('cancelled', 'Cancelled'),
@@ -64,16 +65,67 @@ class DmProductionRun(models.Model):
     )
     
     # ========================================================================
-    # DATE FIELDS
+    # THREE-LAYER DATE MANAGEMENT
+    # ========================================================================
+    
+    # Production Start dates
+    production_start_requested = fields.Date(
+        string='Production Start (Requested)',
+        tracking=True,
+        help='Original requested production start date'
+    )
+    
+    production_start_current = fields.Date(
+        string='Production Start (Current)',
+        tracking=True,
+        help='Current planned production start date'
+    )
+    
+    production_start_actual = fields.Date(
+        string='Production Start (Actual)',
+        tracking=True,
+        readonly=True,
+        help='Actual production start date - CASCADEs to deals'
+    )
+    
+    # RTS dates
+    rts_requested = fields.Date(
+        string='RTS (Requested)',
+        tracking=True,
+        help='Original requested ready-to-ship date'
+    )
+    
+    rts_current = fields.Date(
+        string='RTS (Current)',
+        required=True,
+        tracking=True,
+        help='Current planned ready-to-ship date'
+    )
+    
+    rts_actual = fields.Date(
+        string='RTS (Actual)',
+        tracking=True,
+        readonly=True,
+        help='Actual ready-to-ship date - CASCADEs to deals'
+    )
+    
+    # ========================================================================
+    # BACKWARD COMPATIBILITY FIELDS
     # ========================================================================
     
     production_start_date = fields.Date(
         string='Production Start',
+        compute='_compute_backward_compat_dates',
+        inverse='_inverse_production_start_date',
+        store=False,
         tracking=True
     )
     
     rts_date = fields.Date(
         string='Ready to Ship',
+        compute='_compute_backward_compat_dates',
+        inverse='_inverse_rts_date',
+        store=False,
         tracking=True,
         help='Target RTS date for this production run'
     )
@@ -183,6 +235,29 @@ class DmProductionRun(models.Model):
     def _compute_deal_count(self):
         for pr in self:
             pr.deal_count = len(pr.deal_ids)
+    
+    # ========================================================================
+    # BACKWARD COMPATIBILITY COMPUTES
+    # ========================================================================
+    
+    @api.depends('production_start_current', 'rts_current')
+    def _compute_backward_compat_dates(self):
+        """Map old single-date fields to new three-layer dates"""
+        for pr in self:
+            pr.production_start_date = pr.production_start_current
+            pr.rts_date = pr.rts_current
+    
+    def _inverse_production_start_date(self):
+        """Write to production_start_current when old field updated"""
+        for pr in self:
+            if pr.production_start_date:
+                pr.production_start_current = pr.production_start_date
+    
+    def _inverse_rts_date(self):
+        """Write to rts_current when old field updated"""
+        for pr in self:
+            if pr.rts_date:
+                pr.rts_current = pr.rts_date
     
     @api.depends('deal_ids', 'deal_ids.total_teu', 'deal_ids.total_containers')
     def _compute_totals(self):
@@ -410,6 +485,21 @@ class DmProductionRun(models.Model):
         
         return (True, '')
     
+    def write(self, vals):
+        """Override to CASCADE date changes"""
+        res = super().write(vals)
+        
+        # CASCADE actual dates
+        if 'production_start_actual' in vals:
+            for pr in self:
+                pr._cascade_production_start_actual()
+        
+        if 'rts_actual' in vals:
+            for pr in self:
+                pr._cascade_rts_actual()
+        
+        return res
+    
     def action_confirm(self):
         """
         Phase 3: Enhanced confirmation with capacity check
@@ -436,21 +526,86 @@ class DmProductionRun(models.Model):
         return True
     
     # ========================================================================
+    # CASCADE IMPLEMENTATIONS
+    # ========================================================================
+    
+    def _cascade_production_start_actual(self):
+        """CASCADE production_start_actual to allocated deals"""
+        self.ensure_one()
+        
+        if not self.production_start_actual:
+            return
+        
+        for alloc in self.allocation_ids.filtered(lambda a: a.state in ['active', 'completed']):
+            deal = alloc.deal_id
+            if deal and not self.env.context.get('skip_cascade'):
+                deal.with_context(skip_cascade=True).write({
+                    'production_start_actual': self.production_start_actual
+                })
+                
+                _logger.info(
+                    f"CASCADE: PR {self.name} → Deal {deal.name}: "
+                    f"production_start_actual = {self.production_start_actual}"
+                )
+    
+    def _cascade_rts_actual(self):
+        """CASCADE rts_actual to allocated deals"""
+        self.ensure_one()
+        
+        if not self.rts_actual:
+            return
+        
+        for alloc in self.allocation_ids.filtered(lambda a: a.state in ['active', 'completed']):
+            deal = alloc.deal_id
+            if deal and not self.env.context.get('skip_cascade'):
+                deal.with_context(skip_cascade=True).write({
+                    'rts_actual': self.rts_actual
+                })
+                
+                _logger.info(
+                    f"CASCADE: PR {self.name} → Deal {deal.name}: "
+                    f"rts_actual = {self.rts_actual}"
+                )
+    
+    # ========================================================================
     # STATE MANAGEMENT
     # ========================================================================
     
     def action_start_production(self):
-        """Start production"""
-        self.write({'state': 'production'})
+        """
+        Start production.
+        Sets production_start_actual and CASCADEs to deals.
+        """
+        for pr in self:
+            pr.write({
+                'state': 'production',
+                'production_start_actual': fields.Date.today()
+            })
+            
+            _logger.info(f"Production Run {pr.name} started on {fields.Date.today()}")
+        
+        return True
+    
+    def action_qc_pending(self):
+        """
+        Move to QC pending state (non-blocking documentation checkpoint).
+        """
+        for pr in self:
+            pr.write({'state': 'qc_pending'})
+            _logger.info(f"Production Run {pr.name} moved to QC pending")
+        
         return True
     
     def action_mark_ready(self):
         """
         Mark production as ready to ship.
-        Updates deal states to 'ready'.
+        Sets rts_actual, CASCADEs to deals, updates deal states.
         """
         for pr in self:
-            pr.write({'state': 'ready'})
+            pr.write({
+                'state': 'ready',
+                'rts_actual': fields.Date.today()
+            })
             
             # Update deal states
             for alloc in pr.allocation_ids.filtered(lambda a: a.state == 'active'):

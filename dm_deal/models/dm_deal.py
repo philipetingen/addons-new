@@ -106,6 +106,36 @@ class DmDeal(models.Model):
         compute='_compute_confirmation_status',
         store=True
     )
+
+    # ============================================================
+    # DEAL LOCKING MECHANISM - Production & Shipment Locks
+    # ============================================================
+    
+    is_locked_for_production = fields.Boolean(
+        compute='_compute_production_lock',
+        store=True,
+        string='Locked by Production',
+        help='Deal locked due to active production allocation'
+    )
+    
+    is_locked_for_shipment = fields.Boolean(
+        compute='_compute_shipment_lock',
+        store=True,
+        string='Locked by Shipment',
+        help='Deal locked due to active shipment allocation'
+    )
+    
+    production_lock_reason = fields.Char(
+        compute='_compute_production_lock',
+        string='Production Lock Reason',
+        help='Production run causing the lock'
+    )
+    
+    shipment_lock_reason = fields.Char(
+        compute='_compute_shipment_lock',
+        string='Shipment Lock Reason',
+        help='Shipment causing the lock'
+    )
     
     # ============================================================
     # COMPLETE MILESTONE MATRIX - ALL THREE-LAYER DATES
@@ -516,6 +546,42 @@ class DmDeal(models.Model):
     po_count = fields.Integer(compute='_compute_counts', string='PO Count')
 
     # ============================================================
+    # UNIVERSAL DEAL FIELDS MIXIN
+    # ============================================================
+
+    product_ids = fields.Many2many(
+        'product.product',
+        compute='_compute_product_ids',
+        store=True,
+        string='Products'
+    )
+    
+    @api.depends('line_ids', 'line_ids.product_id')
+    def _compute_product_ids(self):
+        """Compute unique products from deal lines, sorted by category."""
+        for deal in self:
+            if not deal.line_ids:
+                deal.product_ids = False
+                continue
+            
+            lines_with_products = deal.line_ids.filtered(lambda l: l.product_id)
+            
+            if not lines_with_products:
+                deal.product_ids = False
+                continue
+            
+            products = lines_with_products.mapped('product_id')
+            
+            sorted_products = products.sorted(
+                key=lambda p: (
+                    p.categ_id.display_sequence if p.categ_id and hasattr(p.categ_id, 'display_sequence') else 9999,
+                    p.name or ''
+                )
+            )
+            
+            deal.product_ids = sorted_products
+
+    # ============================================================
     # MILESTONE GETTER - SINGLE SOURCE OF TRUTH
     # ============================================================
     
@@ -631,6 +697,46 @@ class DmDeal(models.Model):
             so_status = '✓ SO' if deal.so_confirmed else '○ SO'
             po_status = '✓ PO' if deal.po_confirmed else '○ PO'
             deal.confirmation_status_display = f"{so_status} | {po_status}"
+    
+    @api.depends('allocation_ids.state', 'allocation_ids.allocation_type')
+    def _compute_production_lock(self):
+        """Check if deal is locked by production allocation"""
+        for deal in self:
+            pr_allocs = deal.allocation_ids.filtered(
+                lambda a: a.allocation_type == 'production' and a.state == 'active'
+            )
+            
+            if pr_allocs and hasattr(pr_allocs[0], 'production_run_id'):
+                pr = pr_allocs[0].production_run_id
+                if pr and pr.state in ['confirmed', 'production', 'ready']:
+                    deal.is_locked_for_production = True
+                    deal.production_lock_reason = f"PR-{pr.name} ({pr.state})"
+                else:
+                    deal.is_locked_for_production = False
+                    deal.production_lock_reason = False
+            else:
+                deal.is_locked_for_production = False
+                deal.production_lock_reason = False
+    
+    @api.depends('allocation_ids.state', 'allocation_ids.allocation_type')
+    def _compute_shipment_lock(self):
+        """Check if deal is locked by shipment allocation"""
+        for deal in self:
+            ship_allocs = deal.allocation_ids.filtered(
+                lambda a: a.allocation_type == 'shipment' and a.state == 'active'
+            )
+            
+            if ship_allocs and hasattr(ship_allocs[0], 'shipment_id'):
+                ship = ship_allocs[0].shipment_id
+                if ship and ship.state in ['confirmed', 'loading', 'shipped', 'arrived']:
+                    deal.is_locked_for_shipment = True
+                    deal.shipment_lock_reason = f"SHIP-{ship.name} ({ship.state})"
+                else:
+                    deal.is_locked_for_shipment = False
+                    deal.shipment_lock_reason = False
+            else:
+                deal.is_locked_for_shipment = False
+                deal.shipment_lock_reason = False
     
     @api.depends('product_invoice_percentage')
     def _compute_service_percentage(self):
@@ -1406,6 +1512,69 @@ class DmDeal(models.Model):
         
         return True
     
+    def action_unlock_production(self):
+        """Unlock deal by cancelling production allocation"""
+        self.ensure_one()
+        
+        if not self.is_locked_for_production:
+            raise UserError(_("Deal is not locked by production"))
+        
+        pr_allocs = self.allocation_ids.filtered(
+            lambda a: a.allocation_type == 'production' and a.state == 'active'
+        )
+        
+        if pr_allocs:
+            pr = pr_allocs[0].production_run_id
+            pr_allocs.action_cancel()
+            
+            self.message_post(
+                body=f"Production lock removed. Allocation to {pr.name} cancelled.",
+                subject="Deal Unlocked"
+            )
+            
+            if self.state in ['allocated', 'partial', 'ready']:
+                self.write({'state': 'confirmed'})
+            
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'message': f'Deal unlocked. Allocation to {pr.name} cancelled.',
+                    'type': 'success',
+                    'sticky': False,
+                }
+            }
+    
+    def action_unlock_shipment(self):
+        """Unlock deal by cancelling shipment allocation"""
+        self.ensure_one()
+        
+        if not self.is_locked_for_shipment:
+            raise UserError(_("Deal is not locked by shipment"))
+        
+        ship_allocs = self.allocation_ids.filtered(
+            lambda a: a.allocation_type == 'shipment' and a.state == 'active'
+        )
+        
+        if ship_allocs:
+            ship = ship_allocs[0].shipment_id
+            ship_allocs.action_cancel()
+            
+            self.message_post(
+                body=f"Shipment lock removed. Allocation to {ship.name} cancelled.",
+                subject="Deal Unlocked"
+            )
+            
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'message': f'Deal unlocked. Allocation to {ship.name} cancelled.',
+                    'type': 'warning',
+                    'sticky': False,
+                }
+            }
+    
     def action_cancel(self):
         for deal in self:
             if deal.state in ['delivered', 'paid']:
@@ -1527,6 +1696,43 @@ class DmDeal(models.Model):
     # ============================================================
     
     def write(self, vals):
+        # LOCK VALIDATION - Production fields
+        PRODUCTION_LOCKED = {
+            'supplier_id', 'purchase_payment_term_id', 'purchase_incoterm_id',
+            'purchase_incoterm_location', 'production_start_requested',
+            'rts_requested', 'rts_current', 'currency_id'
+        }
+        
+        # LOCK VALIDATION - Shipment fields
+        SHIPMENT_LOCKED = {
+            'loading_port_id', 'discharge_port_id', 'sale_incoterm_id',
+            'sale_incoterm_location', 'sale_payment_term_id',
+            'customer_po_number', 'loading_requested', 'loading_current',
+            'etd_requested', 'etd_current', 'eta_requested', 'eta_current',
+            'delivery_requested', 'delivery_current'
+        }
+        
+        for deal in self:
+            # Check production lock
+            if deal.is_locked_for_production:
+                attempted_pr_changes = set(vals.keys()) & PRODUCTION_LOCKED
+                if attempted_pr_changes:
+                    raise UserError(_(
+                        "Cannot modify production-locked fields while allocated to %s\n\n"
+                        "Locked fields: %s\n\n"
+                        "To edit: Cancel allocation → Modify deal → Reallocate"
+                    ) % (deal.production_lock_reason, ', '.join(attempted_pr_changes)))
+            
+            # Check shipment lock
+            if deal.is_locked_for_shipment:
+                attempted_ship_changes = set(vals.keys()) & SHIPMENT_LOCKED
+                if attempted_ship_changes:
+                    raise UserError(_(
+                        "Cannot modify shipment-locked fields while allocated to %s\n\n"
+                        "Locked fields: %s\n\n"
+                        "To edit: Cancel allocation → Modify deal → Reallocate"
+                    ) % (deal.shipment_lock_reason, ', '.join(attempted_ship_changes)))
+        
         # DATE CASCADE logging (if needed)
         for deal in self:
             if 'rts_current' in vals and vals['rts_current'] != deal.rts_current:
