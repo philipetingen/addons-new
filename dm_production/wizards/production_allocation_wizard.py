@@ -82,10 +82,10 @@ class ProductionAllocationWizard(models.TransientModel):
                 self.rts_date = deal.rts_requested
     
     def action_allocate(self):
-        """Allocate deals to production"""
+        """Allocate deals to production with enhanced validation"""
         self.ensure_one()
         
-        # Validate
+        # Validate wizard inputs
         if self.create_new_pr:
             if not self.supplier_id:
                 raise UserError(_('Supplier is required for new production run'))
@@ -93,28 +93,62 @@ class ProductionAllocationWizard(models.TransientModel):
             if not self.production_run_id:
                 raise UserError(_('Please select a production run'))
         
-        # Check deals are not already allocated to production
-        already_allocated = self.deal_ids.filtered(lambda d: d.production_allocated)
-        if already_allocated:
-            raise UserError(_(
-                'The following deals are already allocated to production: %s'
-            ) % ', '.join(already_allocated.mapped('name')))
+        # ENHANCED VALIDATION: Check for ACTUAL active allocations with valid PRs
+        Allocation = self.env['dm.allocation']
+        ProductionRun = self.env['dm.production.run']
+        
+        for deal in self.deal_ids:
+            # Search for active production allocations
+            active_pr_allocs = Allocation.search([
+                ('deal_id', '=', deal.id),
+                ('allocation_type', '=', 'production'),
+                ('state', '=', 'active'),
+            ])
+            
+            # Filter to only those with valid, non-cancelled PRs
+            valid_allocs = active_pr_allocs.filtered(
+                lambda a: a.production_run_id 
+                and a.production_run_id.exists() 
+                and a.production_run_id.state != 'cancelled'
+            )
+            
+            if valid_allocs:
+                pr_names = ', '.join(valid_allocs.mapped('production_run_id.name'))
+                raise UserError(_(
+                    'Deal %s is already allocated to production run(s): %s. '
+                    'Cannot create duplicate active allocation.'
+                ) % (deal.name, pr_names))
         
         # Create or get production run
         if self.create_new_pr:
-            pr = self.env['dm.production.run'].create({
+            pr_vals = {
                 'supplier_id': self.supplier_id.id,
-                'production_start_date': self.production_start_date,
-                'rts_date': self.rts_date,
-            })
+            }
+            
+            # Use new three-layer date fields if available
+            if hasattr(ProductionRun, 'production_start_current'):
+                if self.production_start_date:
+                    pr_vals['production_start_current'] = self.production_start_date
+                if self.rts_date:
+                    pr_vals['rts_current'] = self.rts_date
+            else:
+                # Fallback to legacy fields
+                if self.production_start_date:
+                    pr_vals['production_start_date'] = self.production_start_date
+                if self.rts_date:
+                    pr_vals['rts_date'] = self.rts_date
+            
+            pr = ProductionRun.create(pr_vals)
             _logger.info(f"Created production run {pr.name} for supplier {self.supplier_id.name}")
         else:
             pr = self.production_run_id
         
-        # Create allocations
+        # Create allocations and production lines
         allocations_created = 0
+        
         for deal in self.deal_ids:
-            allocation = self.env['dm.allocation'].create({
+            # Create allocation
+            allocation = Allocation.create({
                 'deal_id': deal.id,
                 'allocation_type': 'production',
                 'production_run_id': pr.id,
@@ -122,16 +156,27 @@ class ProductionAllocationWizard(models.TransientModel):
             })
             allocations_created += 1
             
-            # FIX #3: Update deal state ONLY if BOTH PR and Shipment allocated
+            # Auto-create production lines from deal lines
+            if hasattr(self, '_create_production_lines_for_deal'):
+                self._create_production_lines_for_deal(pr, deal)
+            
+            # Update deal state ONLY if BOTH PR and Shipment allocated
             if deal.state == 'confirmed':
                 # Check if shipment also allocated
-                if deal.shipment_allocated:
+                shipment_allocated = any(
+                    a.allocation_type == 'shipment' and a.state == 'active'
+                    for a in deal.allocation_ids
+                )
+                
+                if shipment_allocated:
                     deal.write({'state': 'allocated'})
-                # If only production allocated, stay in 'confirmed'
+                    _logger.info(f"Deal {deal.name} state → 'allocated' (both PR and Shipment)")
+                else:
+                    _logger.info(f"Deal {deal.name} remains 'confirmed' (only PR allocated)")
             
-            _logger.info(f"Allocated deal {deal.name} to production run {pr.name}")
+            _logger.info(f"✓ Allocated deal {deal.name} to production run {pr.name}")
         
-        # FIX #5: Close wizard with success message
+        # Success notification
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -145,3 +190,30 @@ class ProductionAllocationWizard(models.TransientModel):
                 'next': {'type': 'ir.actions.act_window_close'},
             }
         }
+        
+    def _create_production_lines_for_deal(self, production_run, deal):
+        """
+        Auto-create production lines from deal lines
+        Called after allocation is created
+        """
+        lines_created = []
+        
+        for deal_line in deal.line_ids:
+            pr_line = self.env['dm.production.line'].create({
+                'production_run_id': production_run.id,
+                'deal_id': deal.id,
+                'deal_line_id': deal_line.id,
+                'product_id': deal_line.product_id.id,
+                'product_packaging_id': deal_line.product_packaging_id.id,  # ✅ CORRECT
+                'quantity_ordered': deal_line.quantity_packaging,  # ✅ CORRECT
+                'quantity_produced': 0.0,
+                'sequence': deal_line.sequence,
+            })
+            lines_created.append(pr_line)
+        
+        _logger.info(
+            f"Created {len(lines_created)} production lines for deal {deal.name} "
+            f"in PR {production_run.name}"
+        )
+        
+        return lines_created

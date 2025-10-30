@@ -60,6 +60,7 @@ class DmDeal(models.Model):
                 lambda a: a.allocation_type == 'production' 
                 and a.state in ['active', 'completed']
                 and a.production_run_id
+                and a.production_run_id.state != 'cancelled'  # FIX: Exclude cancelled PRs
             )
             deal.production_run_ids = pr_allocations.mapped('production_run_id')
     

@@ -50,10 +50,10 @@ class DmProductionRun(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('confirmed', 'Confirmed'),
-        ('production', 'In Production'),
+        ('in_production', 'In Production'),  # ✅ Changed from 'production'
         ('qc_pending', 'QC Pending'),
         ('ready', 'Ready to Ship'),
-        ('done', 'Done'),
+        ('completed', 'Completed'),          # ✅ Changed from 'done'
         ('cancelled', 'Cancelled'),
     ], string='Status', default='draft', required=True, tracking=True)
     
@@ -217,6 +217,37 @@ class DmProductionRun(models.Model):
     # ========================================================================
     
     notes = fields.Text(string='Notes')
+
+    # ========================================================================
+    # PRODUCTION LINES (Phase 1)
+    # ========================================================================
+    
+    line_ids = fields.One2many(
+        'dm.production.line',
+        'production_run_id',
+        string='Production Lines',
+        help='Production lines for this run'
+    )
+    
+    line_count = fields.Integer(
+        compute='_compute_line_count',
+        string='Line Count'
+    )
+    
+    # Totals from lines
+    total_teu_from_lines = fields.Float(
+        compute='_compute_line_totals',
+        store=True,
+        string='TEU (from Lines)',
+        digits=(16, 6)
+    )
+    
+    total_containers_from_lines = fields.Float(
+        compute='_compute_line_totals',
+        store=True,
+        string='Containers (from Lines)',
+        digits=(16, 6)
+    )
     
     # ========================================================================
     # COMPUTED METHODS
@@ -406,10 +437,29 @@ class DmProductionRun(models.Model):
                     ct = data['type']
                     containers = data['containers']
                     teu = data['teu']
+                    
+                    # ✅ FIX: Use display_name instead of code
+                    display = ct.display_name if ct.display_name else ct.name
                     lines.append(
-                        f"• {ct.name} ({ct.code}): {containers:.1f} containers = {teu:.1f} TEU"
+                        f"• {display}: {containers:.1f} containers = {teu:.1f} TEU"
                     )
                 pr.container_breakdown = "\n".join(lines)
+
+    # ========================================================================
+    # PRODUCTION LINE COMPUTATIONS (Phase 1)
+    # ========================================================================
+    
+    @api.depends('line_ids')
+    def _compute_line_count(self):
+        for pr in self:
+            pr.line_count = len(pr.line_ids)
+    
+    @api.depends('line_ids.teu_produced', 'line_ids.containers_produced')
+    def _compute_line_totals(self):
+        """Aggregate totals from production lines"""
+        for pr in self:
+            pr.total_teu_from_lines = sum(pr.line_ids.mapped('teu_produced'))
+            pr.total_containers_from_lines = sum(pr.line_ids.mapped('containers_produced'))
     
     # ========================================================================
     # CREATE & WRITE HOOKS
@@ -572,17 +622,23 @@ class DmProductionRun(models.Model):
     # ========================================================================
     
     def action_start_production(self):
-        """
-        Start production.
-        Sets production_start_actual and CASCADEs to deals.
-        """
+        """Start production and copy ordered quantities to produced"""
         for pr in self:
-            pr.write({
-                'state': 'production',
-                'production_start_actual': fields.Date.today()
-            })
+            # Copy ordered → produced for all lines
+            for line in pr.line_ids:
+                if line.quantity_produced == 0:
+                    line.write({'quantity_produced': line.quantity_ordered})
             
-            _logger.info(f"Production Run {pr.name} started on {fields.Date.today()}")
+            # Update dates
+            if not pr.production_start_actual:
+                pr.write({
+                    'production_start_actual': fields.Date.today(),
+                    'state': 'in_production'
+                })
+            else:
+                pr.write({'state': 'in_production'})
+            
+            _logger.info(f"PR {pr.name} started production with {len(pr.line_ids)} lines")
         
         return True
     
@@ -620,23 +676,23 @@ class DmProductionRun(models.Model):
         
         return True
     
-    def action_done(self):
+    def action_complete(self):
         """
         Administrative closure of production run.
         Completes allocations but maintains deal state.
         """
         for pr in self:
-            pr.write({'state': 'done'})
+            pr.write({'state': 'completed'})
             
             # Complete allocations
             active_allocs = pr.allocation_ids.filtered(lambda a: a.state == 'active')
             if active_allocs:
                 active_allocs.action_complete()
                 _logger.info(
-                    f"PR {pr.name} done → {len(active_allocs)} allocations completed"
+                    f"PR {pr.name} completed → {len(active_allocs)} allocations completed"
                 )
             
-            _logger.info(f"Production Run {pr.name} marked as done")
+            _logger.info(f"Production Run {pr.name} marked as completed")
         
         return True
     
@@ -647,6 +703,38 @@ class DmProductionRun(models.Model):
             lambda a: a.state == 'active'
         ).action_cancel()
         self.write({'state': 'cancelled'})
+        return True
+
+    def action_reset_to_draft(self):
+        """Reset to draft - emergency use only"""
+        for pr in self:
+            if pr.state != 'draft':
+                _logger.warning(f"PR {pr.name} reset to draft from {pr.state}")
+                pr.write({'state': 'draft'})
+        return True
+
+    def action_back_to_confirmed(self):
+        """Move back from in_production to confirmed"""
+        for pr in self:
+            if pr.state == 'in_production':
+                _logger.info(f"PR {pr.name} moved back to confirmed")
+                pr.write({'state': 'confirmed'})
+        return True
+
+    def action_back_to_production(self):
+        """Move back from qc_pending to in_production"""
+        for pr in self:
+            if pr.state == 'qc_pending':
+                _logger.info(f"PR {pr.name} moved back to in_production")
+                pr.write({'state': 'in_production'})
+        return True
+
+    def action_back_to_qc(self):
+        """Move back from ready to qc_pending"""
+        for pr in self:
+            if pr.state == 'ready':
+                _logger.info(f"PR {pr.name} moved back to qc_pending")
+                pr.write({'state': 'qc_pending'})
         return True
     
     # ========================================================================
@@ -680,6 +768,18 @@ class DmProductionRun(models.Model):
                 'default_production_run_id': self.id,
                 'default_create_new_pr': False,
             },
+        }
+    
+    def action_view_lines(self):
+        """View production lines"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Production Lines'),
+            'res_model': 'dm.production.line',
+            'view_mode': 'tree,form',
+            'domain': [('production_run_id', '=', self.id)],
+            'context': {'default_production_run_id': self.id},
         }
     
     # ========================================================================

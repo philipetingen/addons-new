@@ -3,3 +3,5 @@ access_dm_production_run_user,dm.production.run.user,model_dm_production_run,dm_
 access_dm_production_run_manager,dm.production.run.manager,model_dm_production_run,dm_deal.group_dm_deal_manager,1,1,1,1
 access_production_allocation_wizard,dm.production.allocation.wizard,model_dm_production_allocation_wizard,base.group_user,1,1,1,0
 access_dm_production_quick_allocate_wizard_user,dm.production.quick.allocate.wizard.user,model_dm_production_quick_allocate_wizard,base.group_user,1,1,1,1
+access_dm_production_line_user,dm.production.line user,model_dm_production_line,dm_deal.group_dm_deal_user,1,1,1,0
+access_dm_production_line_manager,dm.production.line manager,model_dm_production_line,dm_deal.group_dm_deal_manager,1,1,1,1

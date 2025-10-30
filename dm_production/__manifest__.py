@@ -1,22 +1,22 @@
 {
     'name': 'DM Production Management',
-    'version': '17.0.2.0.0',  # Phase 3A - Major increment (new features)
+    'version': '17.0.3.1.0',  # Phase 1 - Production Lines
     'category': 'Manufacturing',
-    'summary': 'Production run management with allocation cockpit and capacity integration',
+    'summary': 'Production run management with line-level tracking',
     'description': """
-        DonnaMello Production Management - Phase 3A Enhanced
-        ====================================================
+        DonnaMello Production Management - Phase 1
+        ==========================================
         
-        Production allocation and planning with visual cockpit.
+        Production allocation and line-level tracking.
         
-        Phase 3A New Features:
-        ----------------------
-        * Unallocated Deals view with grouping and filters
-        * Quick allocation wizard with capacity preview
-        * Enhanced production run views with capacity utilization
-        * Restructured menu for better navigation
-        * Add/remove deals from production runs
-        * Color-coded capacity status
+        Phase 1 New Features:
+        ---------------------
+        * Production line model (dm.production.line)
+        * Line-level quantity tracking (ordered vs produced)
+        * Package-native variance calculations
+        * TEU and container totals per line
+        * Auto-creation from deal lines on allocation
+        * Aggregate totals in production run
         
         Core Features:
         --------------
@@ -34,7 +34,7 @@
         * Graceful degradation when capacity module not installed
         * Package-native TEU calculations
         
-        Version: 2.0.0 (Phase 3A)
+        Version: 3.1.0 (Phase 1 Complete)
         Status: Production Ready
     """,
     'author': 'Philip Etingen for Donna Mello Distribution Solutions',
@@ -48,7 +48,8 @@
         'security/ir.model.access.csv',
         
         # Views - Order matters!
-        'views/dm_production_run_views.xml',        # Core PR views
+        'views/dm_production_line_views.xml',       # NEW: Production lines
+        'views/dm_production_run_views.xml',        # Core PR views (modified)
         'views/dm_deal_unallocated_views.xml',      # Unallocated deals view + action
         'views/dm_deal_production_views.xml',       # Deal extensions
         
