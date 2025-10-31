@@ -655,9 +655,22 @@ class DmProductionRun(models.Model):
     def action_mark_ready(self):
         """
         Mark production as ready to ship.
+        Validates complete lots before proceeding.
         Sets rts_actual, CASCADEs to deals, updates deal states.
         """
         for pr in self:
+            # Validate all lines have complete lots
+            incomplete_lines = pr.line_ids.filtered(
+                lambda l: not l.lots_complete and l.quantity_produced > 0
+            )
+            
+            if incomplete_lines:
+                product_names = ', '.join(incomplete_lines.mapped('product_name'))
+                raise ValidationError(_(
+                    'Cannot set to Ready: The following products have incomplete lot details:\n%s\n\n'
+                    'Please complete lot information for all produced items before proceeding.'
+                ) % product_names)
+            
             pr.write({
                 'state': 'ready',
                 'rts_actual': fields.Date.today()
@@ -672,7 +685,7 @@ class DmProductionRun(models.Model):
                         f"PR {pr.name} ready → Deal {deal.name} updated to '{deal.state}'"
                     )
             
-            _logger.info(f"Production Run {pr.name} marked as ready")
+            _logger.info(f"Production Run {pr.name} marked as ready with complete lots")
         
         return True
     

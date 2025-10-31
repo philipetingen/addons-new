@@ -7,38 +7,52 @@
         <field name="model">dm.production.line</field>
         <field name="arch" type="xml">
             <tree string="Production Lines" 
-                  editable="bottom"
                   decoration-danger="variance_percent &lt; -5"
                   decoration-warning="variance_percent &lt; 0 and variance_percent &gt;= -5"
-                  decoration-success="variance_percent &gt; 0">
+                  decoration-success="variance_percent &gt;= 0"
+                  editable="bottom">
+                <field name="production_run_id"/>
+                <field name="deal_id"/>
+                <field name="product_name"/>
+                <field name="packaging_name"/>
+                <field name="quantity_ordered" sum="total_ordered"/>
+                <field name="quantity_produced" sum="total_produced"/>
+                <field name="quantity_variance" sum="total_variance"/>
+                <field name="variance_percent" widget="percentage"/>
                 
-                <field name="sequence" widget="handle"/>
-                <field name="production_run_id" optional="hide"/>
-                <field name="deal_id" optional="show"/>
-                <field name="product_id" readonly="1"/>
-                <field name="product_packaging_id" readonly="1"/>
+                <!-- Inline Lot Fields (Optional Columns) -->
+                <field name="can_edit_inline" column_invisible="1"/>
+                <field name="lot_count"/>
+                <field name="lot_display" optional="show"/>
+                <field name="lot_number_inline" 
+                       optional="hide" 
+                       readonly="not can_edit_inline"/>
+                <field name="production_date_inline" 
+                       optional="hide" 
+                       readonly="not can_edit_inline"/>
+                <field name="expiry_date_inline" 
+                       optional="hide" 
+                       readonly="not can_edit_inline"/>
+                <field name="lot_notes_inline" 
+                       optional="hide" 
+                       readonly="not can_edit_inline"/>
                 
-                <!-- Quantities -->
-                <field name="quantity_ordered" readonly="1" sum="Total Ordered"/>
-				<field name="quantity_produced" 
-					   sum="Total Produced"
-					   readonly="state not in ['in_production', 'qc_pending', 'ready']"/>
-                <field name="quantity_variance" readonly="1" sum="Total Variance"/>
-                <field name="variance_percent" readonly="1" widget="percentage"/>
+                <field name="lots_complete" widget="boolean" optional="show"/>
+                <field name="containers_ordered" sum="total_containers_ordered" optional="hide"/>
+                <field name="containers_produced" sum="total_containers_produced" optional="hide"/>
+                <field name="teu_ordered" sum="total_teu_ordered" optional="hide"/>
+                <field name="teu_produced" sum="total_teu_produced" optional="hide"/>
+                <field name="state" widget="badge" 
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'in_production'"
+                       decoration-success="state in ['ready', 'completed']"/>
                 
-                <!-- TEU & Containers -->
-                <field name="teu_ordered" optional="hide" sum="Total TEU Ordered"/>
-                <field name="teu_produced" optional="hide" sum="Total TEU Produced"/>
-                <field name="containers_ordered" optional="hide" sum="Total Containers Ordered"/>
-                <field name="containers_produced" optional="hide" sum="Total Containers Produced"/>
-                
-                <!-- Reference fields -->
-                <field name="quantity_ordered_units" optional="hide" readonly="1"/>
-                <field name="quantity_produced_units" optional="hide" readonly="1"/>
-                <field name="packaging_qty" optional="hide" readonly="1"/>
-                
-                <field name="notes" optional="hide"/>
-                <field name="state" optional="show" widget="badge"/>
+                <!-- Wizard Button -->
+                <button name="action_open_lot_wizard" 
+                        type="object" 
+                        icon="fa-list-ul" 
+                        title="Manage Lots (Multiple)"
+                        class="btn-link"/>
             </tree>
         </field>
     </record>
@@ -50,56 +64,109 @@
         <field name="arch" type="xml">
             <form string="Production Line">
                 <header>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,in_production,qc_pending,ready,completed"/>
+                    <button name="action_open_lot_wizard" 
+                            string="Manage Lots" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state not in ['in_production', 'qc_pending', 'ready']"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,in_production,ready,completed"/>
                 </header>
+                
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <!-- Future: Add smart buttons for lots, QC -->
-                    </div>
-                    
                     <group>
-                        <group name="source">
-                            <field name="production_run_id" readonly="1"/>
-                            <field name="deal_id" readonly="1"/>
-                            <field name="deal_line_id" readonly="1"/>
+                        <group string="Reference">
+                            <field name="production_run_id"/>
+                            <field name="deal_id"/>
+                            <field name="deal_line_id"/>
                             <field name="sequence"/>
                         </group>
-                        <group name="product">
-                            <field name="product_id" readonly="1"/>
-                            <field name="product_packaging_id" readonly="1"/>
-                            <field name="packaging_qty" readonly="1"/>
+                        
+                        <group string="Product">
+                            <field name="product_id"/>
+                            <field name="product_packaging_id"/>
+                            <field name="packaging_qty"/>
                         </group>
                     </group>
                     
-                    <group string="Quantities (Package-Native)">
-                        <group name="quantities">
-                            <field name="quantity_ordered" readonly="1"/>
-							<field name="quantity_produced" 
-								   readonly="state not in ['in_production', 'qc_pending', 'ready']"/>
-                            <field name="quantity_variance" readonly="1"/>
-                            <field name="variance_percent" widget="percentage" readonly="1"/>
+                    <group>
+                        <group string="Quantities (Packages)">
+                            <field name="quantity_ordered"/>
+                            <field name="quantity_produced"/>
+                            <field name="quantity_variance" 
+                                   decoration-danger="quantity_variance &lt; 0"
+                                   decoration-success="quantity_variance &gt;= 0"/>
+                            <field name="variance_percent" widget="percentage"
+                                   decoration-danger="variance_percent &lt; -5"
+                                   decoration-warning="variance_percent &lt; 0 and variance_percent &gt;= -5"
+                                   decoration-success="variance_percent &gt;= 0"/>
                         </group>
-                        <group name="unit_reference">
-                            <field name="quantity_ordered_units" readonly="1"/>
-                            <field name="quantity_produced_units" readonly="1"/>
+                        
+                        <group string="Quantities (Units - Reference)">
+                            <field name="quantity_ordered_units"/>
+                            <field name="quantity_produced_units"/>
                         </group>
                     </group>
                     
-                    <group string="Container &amp; TEU Calculations">
-                        <group name="containers">
-                            <field name="container_type_id" readonly="1"/>
-                            <field name="containers_ordered" readonly="1"/>
-                            <field name="containers_produced" readonly="1"/>
+                    <group>
+                        <group string="Containers (Ordered)">
+                            <field name="container_type_id"/>
+                            <field name="containers_ordered"/>
+                            <field name="teu_ordered"/>
                         </group>
-                        <group name="teu">
-                            <field name="teu_ordered" readonly="1"/>
-                            <field name="teu_produced" readonly="1"/>
+                        
+                        <group string="Containers (Produced)">
+                            <field name="containers_produced"/>
+                            <field name="teu_produced"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Inline Lot Editing (Single Lot) -->
+                    <group string="Lot Details (Single Lot)" invisible="lot_count &gt; 1">
+                        <field name="can_edit_inline" invisible="1"/>
+                        <group>
+                            <field name="lot_number_inline" 
+                                   readonly="not can_edit_inline or state not in ['in_production', 'qc_pending', 'ready']"/>
+                            <field name="production_date_inline" 
+                                   readonly="not can_edit_inline or state not in ['in_production', 'qc_pending', 'ready']"/>
+                        </group>
+                        <group>
+                            <field name="expiry_date_inline" 
+                                   readonly="not can_edit_inline or state not in ['in_production', 'qc_pending', 'ready']"/>
+                            <field name="lot_notes_inline" 
+                                   readonly="not can_edit_inline or state not in ['in_production', 'qc_pending', 'ready']"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Multiple Lots Summary -->
+                    <group string="Lot Summary" invisible="lot_count == 0">
+                        <group>
+                            <field name="lot_count"/>
+                            <field name="total_lotted_quantity"/>
+                        </group>
+                        <group>
+                            <field name="unlotted_quantity" 
+                                   decoration-danger="unlotted_quantity != 0"/>
+                            <field name="lots_complete" widget="boolean"/>
                         </group>
                     </group>
                     
                     <notebook>
-                        <page string="Production Notes" name="notes">
-                            <field name="notes" placeholder="Enter production notes, issues, or observations..."/>
+                        <page string="Lots" invisible="lot_count == 0">
+                            <field name="lot_ids" nolabel="1">
+                                <tree>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="lot_number"/>
+                                    <field name="quantity" sum="total"/>
+                                    <field name="quantity_units" sum="total"/>
+                                    <field name="production_date"/>
+                                    <field name="expiry_date"/>
+                                    <field name="notes"/>
+                                </tree>
+                            </field>
+                        </page>
+                        
+                        <page string="Notes">
+                            <field name="notes" nolabel="1" placeholder="Production notes for this line..."/>
                         </page>
                     </notebook>
                 </sheet>
@@ -112,36 +179,44 @@
         <field name="name">dm.production.line.search</field>
         <field name="model">dm.production.line</field>
         <field name="arch" type="xml">
-            <search>
+            <search string="Production Lines">
                 <field name="production_run_id"/>
                 <field name="deal_id"/>
                 <field name="product_id"/>
                 <field name="product_packaging_id"/>
+                <field name="lot_number_inline"/>
                 
-                <filter string="Shortage" name="shortage" 
-                        domain="[('variance_percent', '&lt;', 0)]"/>
-                <filter string="Significant Shortage (&gt;5%)" name="significant_shortage" 
-                        domain="[('variance_percent', '&lt;', -5)]"/>
-                <filter string="Overproduction" name="overproduction" 
-                        domain="[('variance_percent', '&gt;', 0)]"/>
-                <filter string="No Variance" name="exact" 
-                        domain="[('variance_percent', '=', 0)]"/>
-                
-                <separator/>
-                <filter string="Not Produced" name="not_produced" 
-                        domain="[('quantity_produced', '=', 0)]"/>
+                <filter string="With Variance" name="filter_variance"
+                        domain="[('quantity_variance', '!=', 0)]"/>
+                <filter string="Shortage" name="filter_shortage"
+                        domain="[('quantity_variance', '&lt;', 0)]"/>
+                <filter string="Overage" name="filter_overage"
+                        domain="[('quantity_variance', '&gt;', 0)]"/>
                 
                 <separator/>
+                <filter string="Lots Incomplete" name="filter_lots_incomplete"
+                        domain="[('lots_complete', '=', False), ('quantity_produced', '&gt;', 0)]"/>
+                <filter string="Lots Complete" name="filter_lots_complete"
+                        domain="[('lots_complete', '=', True)]"/>
+                
+                <separator/>
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="In Production" name="filter_in_production"
+                        domain="[('state', '=', 'in_production')]"/>
+                <filter string="Ready" name="filter_ready"
+                        domain="[('state', '=', 'ready')]"/>
+                
                 <group expand="0" string="Group By">
-                    <filter string="Production Run" name="group_pr" 
+                    <filter string="Production Run" name="group_production_run"
                             context="{'group_by': 'production_run_id'}"/>
-                    <filter string="Deal" name="group_deal" 
+                    <filter string="Deal" name="group_deal"
                             context="{'group_by': 'deal_id'}"/>
-                    <filter string="Product" name="group_product" 
+                    <filter string="Product" name="group_product"
                             context="{'group_by': 'product_id'}"/>
-                    <filter string="Package" name="group_package" 
+                    <filter string="Package Type" name="group_packaging"
                             context="{'group_by': 'product_packaging_id'}"/>
-                    <filter string="State" name="group_state" 
+                    <filter string="State" name="group_state"
                             context="{'group_by': 'state'}"/>
                 </group>
             </search>

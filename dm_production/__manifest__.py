@@ -1,16 +1,23 @@
 {
     'name': 'DM Production Management',
-    'version': '17.0.3.1.0',  # Phase 1 - Production Lines
+    'version': '17.0.3.2.0',  # Phase 2 - Lot Management
     'category': 'Manufacturing',
-    'summary': 'Production run management with line-level tracking',
+    'summary': 'Production run management with line-level tracking and lot management',
     'description': """
-        DonnaMello Production Management - Phase 1
+        DonnaMello Production Management - Phase 2
         ==========================================
         
-        Production allocation and line-level tracking.
+        Phase 2 New Features (v3.2.0):
+        -------------------------------
+        * Production lot model (dm.production.lot)
+        * Lot wizard with smart auto-split
+        * Strict quantity validation (total = produced)
+        * Auto-expiry date calculation from product
+        * Block RTS without complete lots
+        * Full traceability: Deal → PR → Lot
         
-        Phase 1 New Features:
-        ---------------------
+        Phase 1 Features (v3.1.0):
+        ---------------------------
         * Production line model (dm.production.line)
         * Line-level quantity tracking (ordered vs produced)
         * Package-native variance calculations
@@ -34,7 +41,7 @@
         * Graceful degradation when capacity module not installed
         * Package-native TEU calculations
         
-        Version: 3.1.0 (Phase 1 Complete)
+        Version: 3.2.0 (Phase 2 Complete)
         Status: Production Ready
     """,
     'author': 'Philip Etingen for Donna Mello Distribution Solutions',
@@ -47,15 +54,17 @@
         # Security
         'security/ir.model.access.csv',
         
-        # Views - Order matters!
-        'views/dm_production_line_views.xml',       # NEW: Production lines
-        'views/dm_production_run_views.xml',        # Core PR views (modified)
-        'views/dm_deal_unallocated_views.xml',      # Unallocated deals view + action
-        'views/dm_deal_production_views.xml',       # Deal extensions
         
         # Wizards
+        'wizards/production_lot_wizard_views.xml',         # NEW: Lot management
         'wizards/production_allocation_wizard_views.xml',  # Bulk allocation
         'wizards/quick_allocate_wizard_views.xml',         # Quick allocation
+
+        # Views - Order matters!
+        'views/dm_production_line_views.xml',       # Production lines
+        'views/dm_production_run_views.xml',        # Core PR views
+        'views/dm_deal_unallocated_views.xml',      # Unallocated deals view + action
+        'views/dm_deal_production_views.xml',       # Deal extensions
         
         # Data
         'data/production_server_actions.xml',       # Server actions

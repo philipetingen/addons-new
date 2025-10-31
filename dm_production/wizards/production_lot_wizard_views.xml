@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Lot Wizard Form -->
+    <record id="view_production_lot_wizard_form" model="ir.ui.view">
+        <field name="name">production.lot.wizard.form</field>
+        <field name="model">production.lot.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Manage Production Lots">
+                <group>
+                    <group>
+                        <field name="product_id"/>
+                        <field name="product_packaging_id"/>
+                    </group>
+                    <group>
+                        <field name="quantity_produced"/>
+                        <field name="total_quantity"/>
+                        <field name="remaining_quantity" 
+                               decoration-danger="remaining_quantity != 0"/>
+                        <field name="quantity_matches" invisible="1"/>
+                    </group>
+                </group>
+                
+                <notebook>
+                    <page string="Lot Details">
+                        <field name="lot_line_ids" nolabel="1">
+                            <tree editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="lot_id" column_invisible="1"/>
+                                <field name="lot_number" required="1"/>
+                                <field name="quantity" required="1" sum="total"/>
+                                <field name="production_date" required="1"/>
+                                <field name="expiry_date"/>
+                                <field name="notes"/>
+                            </tree>
+                        </field>
+                    </page>
+                </notebook>
+                
+                <footer>
+                    <button string="Add Lot" 
+                            name="action_add_lot" 
+                            type="object" 
+                            class="btn-secondary"
+                            invisible="remaining_quantity &lt;= 0"/>
+                    <button string="Save Lots" 
+                            name="action_save_lots" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="not quantity_matches"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Wizard Action -->
+    <record id="action_production_lot_wizard" model="ir.actions.act_window">
+        <field name="name">Manage Production Lots</field>
+        <field name="res_model">production.lot.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    
+</odoo>

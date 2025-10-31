@@ -2,6 +2,7 @@
 
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from datetime import timedelta
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -34,6 +35,46 @@ class DmProductionLine(models.Model):
         string='PR State',
         store=True,
         readonly=True
+    )
+    
+    # ========================================================================
+    # LOT DETAILS
+    # ========================================================================
+    
+    lot_ids = fields.One2many(
+        'dm.production.lot',
+        'production_line_id',
+        string='Lot Details',
+        help='Factory lot/batch details for traceability'
+    )
+    
+    lot_count = fields.Integer(
+        string='Lot Count',
+        compute='_compute_lot_count',
+        store=True
+    )
+    
+    total_lotted_quantity = fields.Float(
+        string='Total Lotted (Pkg)',
+        compute='_compute_lot_totals',
+        store=True,
+        digits=(16, 3),
+        help='Sum of all lot quantities'
+    )
+    
+    unlotted_quantity = fields.Float(
+        string='Unlotted (Pkg)',
+        compute='_compute_lot_totals',
+        store=True,
+        digits=(16, 3),
+        help='Produced quantity not yet assigned to lots'
+    )
+    
+    lots_complete = fields.Boolean(
+        string='Lots Complete',
+        compute='_compute_lot_totals',
+        store=True,
+        help='True when all produced quantity is lotted'
     )
     
     # ========================================================================
@@ -101,7 +142,7 @@ class DmProductionLine(models.Model):
     
     quantity_ordered = fields.Float(
         string='Ordered (Pkg)',
-        digits='Product Unit of Measure',
+        digits=(16, 3),
         required=True,
         readonly=True,
         help='Ordered quantity from deal line (packages)'
@@ -109,7 +150,7 @@ class DmProductionLine(models.Model):
     
     quantity_produced = fields.Float(
         string='Produced (Pkg)',
-        digits='Product Unit of Measure',
+        digits=(16, 3),
         default=0.0,
         help='Actually produced quantity (packages)'
     )
@@ -118,7 +159,7 @@ class DmProductionLine(models.Model):
         string='Variance (Pkg)',
         compute='_compute_variance',
         store=True,
-        digits='Product Unit of Measure',
+        digits=(16, 3),
         help='Produced - Ordered (negative = shortage)'
     )
     
@@ -135,7 +176,7 @@ class DmProductionLine(models.Model):
         string='Ordered (Units)',
         compute='_compute_unit_quantities',
         store=True,
-        digits='Product Unit of Measure',
+        digits=(16, 3),
         help='Ordered quantity in units (reference only)'
     )
     
@@ -143,7 +184,7 @@ class DmProductionLine(models.Model):
         string='Produced (Units)',
         compute='_compute_unit_quantities',
         store=True,
-        digits='Product Unit of Measure',
+        digits=(16, 3),
         help='Produced quantity in units (reference only)'
     )
     
@@ -201,6 +242,56 @@ class DmProductionLine(models.Model):
     )
     
     # ========================================================================
+    # INLINE LOT MANAGEMENT (1:1 SCENARIO)
+    # ========================================================================
+    
+    # Display fields for inline editing (single lot scenario)
+    lot_number_inline = fields.Char(
+        string='Lot Number',
+        compute='_compute_inline_lot_fields',
+        inverse='_inverse_inline_lot_fields',
+        store=False,
+        help='Lot number for single-lot scenario (inline editing)'
+    )
+    
+    production_date_inline = fields.Date(
+        string='Production Date',
+        compute='_compute_inline_lot_fields',
+        inverse='_inverse_inline_lot_fields',
+        store=False,
+        default=fields.Date.today,
+        help='Production date for single-lot scenario (inline editing)'
+    )
+    
+    expiry_date_inline = fields.Date(
+        string='Expiry Date',
+        compute='_compute_inline_lot_fields',
+        inverse='_inverse_inline_lot_fields',
+        store=False,
+        help='Expiry date for single-lot scenario (inline editing)'
+    )
+    
+    lot_notes_inline = fields.Text(
+        string='Lot Notes',
+        compute='_compute_inline_lot_fields',
+        inverse='_inverse_inline_lot_fields',
+        store=False,
+        help='Notes for single-lot scenario (inline editing)'
+    )
+    
+    can_edit_inline = fields.Boolean(
+        string='Can Edit Inline',
+        compute='_compute_can_edit_inline',
+        help='True if line has 0 or 1 lot (can use inline editing)'
+    )
+    
+    lot_display = fields.Char(
+        string='Lots',
+        compute='_compute_lot_display',
+        help='Display lot information in tree'
+    )
+    
+    # ========================================================================
     # COMPUTED METHODS
     # ========================================================================
     
@@ -221,6 +312,138 @@ class DmProductionLine(models.Model):
         for line in self:
             line.quantity_ordered_units = line.quantity_ordered * line.packaging_qty
             line.quantity_produced_units = line.quantity_produced * line.packaging_qty
+    
+    @api.depends('lot_ids')
+    def _compute_lot_count(self):
+        """Count lots for this line"""
+        for line in self:
+            line.lot_count = len(line.lot_ids)
+    
+    @api.depends('lot_ids.quantity', 'quantity_produced')
+    def _compute_lot_totals(self):
+        """Calculate total lotted quantity and check completion"""
+        for line in self:
+            total = sum(line.lot_ids.mapped('quantity'))
+            line.total_lotted_quantity = total
+            line.unlotted_quantity = line.quantity_produced - total
+            line.lots_complete = (
+                line.quantity_produced > 0 and 
+                abs(total - line.quantity_produced) < 0.001
+            )
+            
+            # Debug logging
+            if line.lot_ids:
+                _logger.info(
+                    'Line %s: %d lots, total lotted: %.2f, produced: %.2f, complete: %s',
+                    line.product_name, len(line.lot_ids), total, 
+                    line.quantity_produced, line.lots_complete
+                )
+    
+    @api.depends('lot_ids')
+    def _compute_can_edit_inline(self):
+        """Determine if inline editing is allowed (0 or 1 lot only)"""
+        for line in self:
+            line.can_edit_inline = len(line.lot_ids) <= 1
+    
+    @api.depends('lot_ids', 'lot_count')
+    def _compute_lot_display(self):
+        """Display lot info in tree view"""
+        for line in self:
+            if line.lot_count == 0:
+                line.lot_display = ''
+            elif line.lot_count == 1:
+                lot = line.lot_ids[0]
+                line.lot_display = lot.lot_number
+            else:
+                line.lot_display = f"Multiple ({line.lot_count})"
+    
+    @api.depends('lot_ids.lot_number', 'lot_ids.production_date', 
+                 'lot_ids.expiry_date', 'lot_ids.notes')
+    def _compute_inline_lot_fields(self):
+        """Load lot fields for inline editing (single lot only)"""
+        for line in self:
+            if len(line.lot_ids) == 1:
+                lot = line.lot_ids[0]
+                line.lot_number_inline = lot.lot_number
+                line.production_date_inline = lot.production_date
+                line.expiry_date_inline = lot.expiry_date
+                line.lot_notes_inline = lot.notes
+            elif len(line.lot_ids) == 0:
+                # New lot - set defaults
+                line.lot_number_inline = False
+                line.production_date_inline = fields.Date.today()
+                line.expiry_date_inline = False
+                line.lot_notes_inline = False
+            else:
+                line.lot_number_inline = False
+                line.production_date_inline = False
+                line.expiry_date_inline = False
+                line.lot_notes_inline = False
+    
+    @api.onchange('production_date_inline')
+    def _onchange_production_date_inline(self):
+        """Auto-calculate expiry date when production date changes (inline mode)"""
+        for line in self:
+            if line.production_date_inline and line.product_id:
+                product_tmpl = line.product_id.product_tmpl_id
+                if hasattr(product_tmpl, 'production_to_expiry_days') and product_tmpl.production_to_expiry_days:
+                    line.expiry_date_inline = line.production_date_inline + timedelta(days=product_tmpl.production_to_expiry_days)
+    
+    def _inverse_inline_lot_fields(self):
+        """Save inline lot fields (create or update single lot)"""
+        for line in self:
+            # Only allow if 0 or 1 lot
+            if len(line.lot_ids) > 1:
+                continue
+            
+            # Skip if no data provided
+            if not line.lot_number_inline and not line.production_date_inline:
+                continue
+            
+            # Calculate default expiry if not provided
+            expiry_date = line.expiry_date_inline
+            if line.production_date_inline and not expiry_date:
+                product_tmpl = line.product_id.product_tmpl_id
+                if hasattr(product_tmpl, 'production_to_expiry_days') and product_tmpl.production_to_expiry_days:
+                    expiry_date = line.production_date_inline + timedelta(days=product_tmpl.production_to_expiry_days)
+            
+            lot_vals = {
+                'lot_number': line.lot_number_inline or 'LOT-TBD',
+                'quantity': line.quantity_produced,
+                'production_date': line.production_date_inline or fields.Date.today(),
+                'expiry_date': expiry_date,
+                'notes': line.lot_notes_inline,
+            }
+            
+            if len(line.lot_ids) == 1:
+                # Update existing
+                line.lot_ids[0].write(lot_vals)
+            else:
+                # Create new
+                lot_vals['production_line_id'] = line.id
+                self.env['dm.production.lot'].create(lot_vals)
+    
+    @api.constrains('production_date_inline', 'expiry_date_inline')
+    def _check_inline_expiry_date(self):
+        """Validate expiry date in inline mode"""
+        for line in self:
+            if line.production_date_inline and line.expiry_date_inline:
+                if line.expiry_date_inline < line.production_date_inline:
+                    raise ValidationError(_(
+                        'Expiry date (%s) cannot be earlier than production date (%s)'
+                    ) % (line.expiry_date_inline, line.production_date_inline))
+    
+    def action_open_lot_wizard(self):
+        """Open lot management wizard"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Manage Production Lots',
+            'res_model': 'production.lot.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'production_line_id': self.id}
+        }
     
     @api.depends('product_id', 'product_packaging_id', 'quantity_ordered', 'quantity_produced',
                  'product_id.effective_container_type_id')
