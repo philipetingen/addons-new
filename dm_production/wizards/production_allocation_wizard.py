@@ -196,24 +196,54 @@ class ProductionAllocationWizard(models.TransientModel):
         Auto-create production lines from deal lines
         Called after allocation is created
         """
+        _logger.info(f"=== CREATE PR LINES START ===")
+        _logger.info(f"PR: {production_run.name} (ID: {production_run.id})")
+        _logger.info(f"Deal: {deal.name} (ID: {deal.id})")
+        _logger.info(f"Deal lines count: {len(deal.line_ids)}")
+        
+        if not deal.line_ids:
+            _logger.warning(f"Deal {deal.name} has NO LINES!")
+            return []
+        
         lines_created = []
         
         for deal_line in deal.line_ids:
-            pr_line = self.env['dm.production.line'].create({
-                'production_run_id': production_run.id,
-                'deal_id': deal.id,
-                'deal_line_id': deal_line.id,
-                'product_id': deal_line.product_id.id,
-                'product_packaging_id': deal_line.product_packaging_id.id,  # ✅ CORRECT
-                'quantity_ordered': deal_line.quantity_packaging,  # ✅ CORRECT
-                'quantity_produced': 0.0,
-                'sequence': deal_line.sequence,
-            })
-            lines_created.append(pr_line)
+            _logger.info(f"\n--- Processing deal line {deal_line.id} ---")
+            _logger.info(f"Product: {deal_line.product_id.name if deal_line.product_id else 'MISSING'}")
+            _logger.info(f"Packaging: {deal_line.product_packaging_id.name if deal_line.product_packaging_id else 'MISSING'}")
+            _logger.info(f"Qty packaging: {deal_line.quantity_packaging}")
+            
+            # Validation checks
+            if not deal_line.product_id:
+                _logger.error(f"SKIP: No product_id on line {deal_line.id}")
+                continue
+                
+            if not deal_line.product_packaging_id:
+                _logger.error(f"SKIP: No product_packaging_id on line {deal_line.id}")
+                continue
+                
+            if not deal_line.quantity_packaging or deal_line.quantity_packaging <= 0:
+                _logger.error(f"SKIP: Zero/negative quantity on line {deal_line.id}: {deal_line.quantity_packaging}")
+                continue
+            
+            try:
+                pr_line = self.env['dm.production.line'].create({
+                    'production_run_id': production_run.id,
+                    'deal_id': deal.id,
+                    'deal_line_id': deal_line.id,
+                    'product_id': deal_line.product_id.id,
+                    'product_packaging_id': deal_line.product_packaging_id.id,
+                    'quantity_ordered': deal_line.quantity_packaging,
+                    'quantity_produced': 0.0,
+                    'sequence': deal_line.sequence,
+                })
+                lines_created.append(pr_line)
+                _logger.info(f"✓ Created PR line {pr_line.id}")
+                
+            except Exception as e:
+                _logger.error(f"✗ FAILED to create PR line: {e}", exc_info=True)
+                continue
         
-        _logger.info(
-            f"Created {len(lines_created)} production lines for deal {deal.name} "
-            f"in PR {production_run.name}"
-        )
+        _logger.info(f"=== CREATED {len(lines_created)} PR LINES ===")
         
         return lines_created

@@ -344,6 +344,9 @@ class ProductionQuickAllocateWizard(models.TransientModel):
             'state': 'active',
         })
         
+        # FIX: Create production lines from deal lines
+        self._create_production_lines_for_deal(pr, self.deal_id)
+        
         _logger.info(
             f"Quick allocated Deal {self.deal_id.name} to PR {pr.name}"
         )
@@ -362,6 +365,49 @@ class ProductionQuickAllocateWizard(models.TransientModel):
                 'next': {'type': 'ir.actions.act_window_close'},
             }
         }
+    
+    def _create_production_lines_for_deal(self, production_run, deal):
+        """
+        Auto-create production lines from deal lines
+        Copied from bulk allocation wizard
+        """
+        _logger.info(f"=== CREATE PR LINES (Quick Allocate) ===")
+        _logger.info(f"PR: {production_run.name}, Deal: {deal.name}")
+        _logger.info(f"Deal lines: {len(deal.line_ids)}")
+        
+        if not deal.line_ids:
+            _logger.warning(f"Deal {deal.name} has no lines!")
+            return []
+        
+        lines_created = []
+        
+        for deal_line in deal.line_ids:
+            _logger.info(
+                f"Creating PR line: {deal_line.product_id.name}, "
+                f"Pkg: {deal_line.product_packaging_id.name}, "
+                f"Qty: {deal_line.quantity_packaging}"
+            )
+            
+            try:
+                pr_line = self.env['dm.production.line'].create({
+                    'production_run_id': production_run.id,
+                    'deal_id': deal.id,
+                    'deal_line_id': deal_line.id,
+                    'product_id': deal_line.product_id.id,
+                    'product_packaging_id': deal_line.product_packaging_id.id,
+                    'quantity_ordered': deal_line.quantity_packaging,
+                    'quantity_produced': 0.0,
+                    'sequence': deal_line.sequence,
+                })
+                lines_created.append(pr_line)
+                _logger.info(f"✓ Created PR line {pr_line.id}")
+                
+            except Exception as e:
+                _logger.error(f"✗ Failed to create PR line: {e}", exc_info=True)
+                raise
+        
+        _logger.info(f"=== Created {len(lines_created)} PR lines ===")
+        return lines_created
     
     def action_view_production_run(self):
         """View the target production run"""

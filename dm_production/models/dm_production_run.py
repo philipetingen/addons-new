@@ -655,10 +655,22 @@ class DmProductionRun(models.Model):
     def action_mark_ready(self):
         """
         Mark production as ready to ship.
-        Validates complete lots before proceeding.
-        Sets rts_actual, CASCADEs to deals, updates deal states.
+        
+        This is the LOCK POINT (Phase 4B Step 3):
+        1. Validates complete lots
+        2. Sets rts_actual date
+        3. LOCKS all line quantities (via state change)
+        4. SYNCS quantity_produced to deal lines
+        5. Updates deal state
         """
         for pr in self:
+            # Validate state
+            if pr.state != 'qc_pending':
+                raise UserError(_(
+                    'Production run must be in QC Pending state to mark ready.\n'
+                    'Current state: %s'
+                ) % dict(pr._fields['state'].selection).get(pr.state))
+            
             # Validate all lines have complete lots
             incomplete_lines = pr.line_ids.filtered(
                 lambda l: not l.lots_complete and l.quantity_produced > 0
@@ -671,10 +683,14 @@ class DmProductionRun(models.Model):
                     'Please complete lot information for all produced items before proceeding.'
                 ) % product_names)
             
+            # Update state (this triggers quantity lock via compute)
             pr.write({
                 'state': 'ready',
                 'rts_actual': fields.Date.today()
             })
+            
+            # Sync quantities to deal lines
+            pr._sync_quantities_to_deal()
             
             # Update deal states
             for alloc in pr.allocation_ids.filtered(lambda a: a.state == 'active'):
@@ -688,6 +704,87 @@ class DmProductionRun(models.Model):
             _logger.info(f"Production Run {pr.name} marked as ready with complete lots")
         
         return True
+    
+    # Add NEW method after action_mark_ready
+
+    def _sync_quantities_to_deal(self):
+        """
+        Sync produced quantities from PR lines to deal lines.
+        
+        Called when PR is marked ready_to_ship (quantities locked).
+        Uses sudo() for cross-module write permission.
+        Updates both quantity_produced and production_status.
+        """
+        self.ensure_one()
+        
+        if not self.allocation_ids:
+            _logger.warning(f"PR {self.name} has no allocations - skipping quantity sync")
+            return
+        
+        synced_count = 0
+        
+        for pr_line in self.line_ids:
+            if not pr_line.deal_line_id:
+                _logger.warning(
+                    f"PR line {pr_line.id} (Product: {pr_line.product_name}) "
+                    f"has no deal line link - skipping quantity sync"
+                )
+                continue
+            
+            # Determine production status based on quantities
+            # Must match dm_deal_line_quantities.py selection values
+            if pr_line.quantity_produced <= 0:
+                prod_status = 'pending'
+            elif abs(pr_line.quantity_produced - pr_line.quantity_ordered) < 0.001:
+                prod_status = 'completed'  # Exact match
+            else:
+                prod_status = 'variance'  # Any deviation (over or under)
+            
+            # Sync quantity_produced AND production_status to deal line
+            pr_line.deal_line_id.sudo().write({
+                'quantity_produced': pr_line.quantity_produced,
+                'production_status': prod_status,
+            })
+            
+            synced_count += 1
+            
+            _logger.debug(
+                f"Synced quantity_produced={pr_line.quantity_produced}, "
+                f"production_status={prod_status} "
+                f"from PR line {pr_line.id} to deal line {pr_line.deal_line_id.id}"
+            )
+        
+        # Log on PR
+        self.message_post(
+            body=_(
+                'Production quantities synced to deal lines.<br/>'
+                'Total produced: <strong>%s packages</strong> across %s lines.'
+            ) % (
+                sum(self.line_ids.mapped('quantity_produced')),
+                synced_count
+            ),
+            subject=_('Quantities Locked & Synced'),
+            message_type='notification'
+        )
+        
+        # Log on each deal
+        for alloc in self.allocation_ids:
+            if alloc.deal_id:
+                alloc.deal_id.message_post(
+                    body=_(
+                        'Production quantities synced from <strong>%s</strong>.<br/>'
+                        'Total produced: <strong>%s packages</strong>.'
+                    ) % (
+                        self.name,
+                        sum(self.line_ids.mapped('quantity_produced'))
+                    ),
+                    subject=_('Production Update'),
+                    message_type='notification'
+                )
+        
+        _logger.info(
+            f"PR {self.name} synced {synced_count} quantities to deal lines"
+        )
     
     def action_complete(self):
         """

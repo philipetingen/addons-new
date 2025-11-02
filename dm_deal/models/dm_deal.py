@@ -982,7 +982,7 @@ class DmDeal(models.Model):
                 ready_prs = [
                     a for a in pr_allocs
                     if a.production_run_id 
-                    and a.production_run_id.state in ['ready', 'done']
+                    and a.production_run_id.state in ['ready', 'completed']  # ✅ CORRECT
                 ]
                 
                 if ready_prs and len(ready_prs) == len(pr_allocs):

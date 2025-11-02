@@ -154,7 +154,28 @@ class DmProductionLine(models.Model):
         default=0.0,
         help='Actually produced quantity (packages)'
     )
-        
+    
+    quantity_loaded = fields.Float(
+        string='Loaded (Pkg)',
+        digits=(16, 3),
+        readonly=True,
+        help='Actual quantity loaded onto shipment (synced from Shipment in Step 5)'
+    )
+
+    quantity_loaded_units = fields.Float(
+        string='Loaded (Units)',
+        compute='_compute_unit_quantities',
+        store=True,
+        digits=(16, 3),
+        help='Loaded quantity in units (reference only)'
+    )
+
+    quantity_produced_readonly = fields.Boolean(
+        string='Quantity Produced Readonly',
+        compute='_compute_quantity_readonly',
+        help='Lock quantity_produced at ready_to_ship and beyond'
+    )
+    
     quantity_variance = fields.Float(
         string='Variance (Pkg)',
         compute='_compute_variance',
@@ -305,13 +326,33 @@ class DmProductionLine(models.Model):
                 line.variance_percent = (line.quantity_variance / line.quantity_ordered) * 100
             else:
                 line.variance_percent = 0.0
-    
-    @api.depends('quantity_ordered', 'quantity_produced', 'packaging_qty')
+
+    @api.depends(
+        'quantity_ordered', 
+        'quantity_produced',
+        'quantity_loaded',  # NEW
+        'packaging_qty'
+    )
     def _compute_unit_quantities(self):
-        """Convert package quantities to units (reference only)"""
+        """Convert package quantities to units"""
         for line in self:
             line.quantity_ordered_units = line.quantity_ordered * line.packaging_qty
             line.quantity_produced_units = line.quantity_produced * line.packaging_qty
+            line.quantity_loaded_units = line.quantity_loaded * line.packaging_qty  # NEW
+
+    @api.depends('production_run_id.state')
+    def _compute_quantity_readonly(self):
+        """
+        Lock quantity_produced at ready_to_ship state.
+        
+        Editable states: draft, confirmed, in_production, qc_pending
+        Locked states: ready, completed, cancelled
+        """
+        for line in self:
+            lock_states = ['ready', 'completed', 'cancelled']
+            line.quantity_produced_readonly = (
+                line.production_run_id.state in lock_states
+            )
     
     @api.depends('lot_ids')
     def _compute_lot_count(self):

@@ -209,6 +209,7 @@
                             <field name="notes" placeholder="Production notes..."/>
                         </page>
 						
+						<!-- Phase 4B Step 3: Updated Production Lines tab -->
 						<page string="Production Lines">
 							<field name="line_ids" nolabel="1">
 								<tree editable="bottom"
@@ -219,8 +220,12 @@
 									<field name="deal_id"/>
 									<field name="product_id"/>
 									<field name="product_packaging_id"/>
+									
+									<!-- Phase 4B Step 3: Three quantities -->
 									<field name="quantity_ordered"/>
-									<field name="quantity_produced"/>
+									<field name="quantity_produced" readonly="quantity_produced_readonly"/>
+									<field name="quantity_loaded" readonly="1" optional="show"/>
+									
 									<field name="quantity_variance"/>
 									<field name="variance_percent" widget="percentage"/>
 									
@@ -248,6 +253,10 @@
 											icon="fa-list-ul" 
 											title="Manage Lots"
 											class="btn-link"/>
+									
+									<!-- Phase 4B Step 3: Hidden field for readonly computation -->
+									<field name="quantity_produced_readonly" column_invisible="1"/>
+									<field name="deal_line_id" column_invisible="1"/>
 								</tree>
 							</field>
 						</page>

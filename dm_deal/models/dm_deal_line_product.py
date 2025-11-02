@@ -11,16 +11,8 @@ class DmDealLineProduct(models.Model):
     _inherit = 'dm.deal.line'
     _description = 'Deal Line - Product Extension'
     
-    @api.depends('quantity_packaging', 'quantity_produced')
-    def _compute_production_status(self):
-        """Compute production completion status"""
-        for line in self:
-            if not line.quantity_produced or line.quantity_produced == 0:
-                line.production_status = 'not_started'
-            elif line.quantity_produced < line.quantity_packaging:
-                line.production_status = 'partial'
-            else:
-                line.production_status = 'complete'
+    # REMOVED: Old production_status field (conflicted with Step 2)
+    # Now defined in dm_deal_line_quantities.py with variance tracking
     
     @api.onchange('customer_product_code')
     def _onchange_customer_product_code(self):
