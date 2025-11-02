@@ -599,6 +599,42 @@ class DmDeal(models.Model):
         help='Total twenty-foot equivalent units'
     )
     
+    # ============================================================
+    # QUANTITY SUMMARIES (Phase 4B Step 2)
+    # ============================================================
+    
+    total_quantity_ordered = fields.Float(
+        string='Total Ordered',
+        compute='_compute_quantity_totals',
+        store=True,
+        digits=(16, 3),
+        help="Sum of ordered quantities across all lines"
+    )
+    
+    total_quantity_produced = fields.Float(
+        string='Total Produced',
+        compute='_compute_quantity_totals',
+        store=True,
+        digits=(16, 3),
+        help="Sum of produced quantities across all lines"
+    )
+    
+    total_quantity_loaded = fields.Float(
+        string='Total Loaded',
+        compute='_compute_quantity_totals',
+        store=True,
+        digits=(16, 3),
+        help="Sum of loaded quantities across all lines"
+    )
+    
+    quantity_completion_rate = fields.Float(
+        string='Completion Rate %',
+        compute='_compute_quantity_totals',
+        store=True,
+        digits=(5, 2),
+        help="Percentage of ordered quantity that was loaded"
+    )
+    
     container_summary = fields.Char(
         string='Container Summary',
         compute='_compute_container_summary',
@@ -812,6 +848,23 @@ class DmDeal(models.Model):
         for deal in self:
             deal.total_containers = sum(deal.line_ids.mapped('containers_required'))
             deal.total_teu = sum(deal.line_ids.mapped('container_teu'))
+    
+    @api.depends('line_ids.quantity_packaging', 
+                 'line_ids.quantity_produced',
+                 'line_ids.quantity_loaded')
+    def _compute_quantity_totals(self):
+        """Compute deal-level quantity summaries"""
+        for deal in self:
+            deal.total_quantity_ordered = sum(deal.line_ids.mapped('quantity_packaging'))
+            deal.total_quantity_produced = sum(deal.line_ids.mapped('quantity_produced'))
+            deal.total_quantity_loaded = sum(deal.line_ids.mapped('quantity_loaded'))
+            
+            if deal.total_quantity_ordered:
+                deal.quantity_completion_rate = (
+                    (deal.total_quantity_loaded / deal.total_quantity_ordered) * 100
+                )
+            else:
+                deal.quantity_completion_rate = 0.0
     
     @api.depends('line_ids.container_type_id', 'line_ids.containers_required')
     def _compute_container_summary(self):

@@ -11,6 +11,162 @@ class DmDealLineQuantities(models.Model):
     _inherit = 'dm.deal.line'
     _description = 'Deal Line - Quantities Extension'
     
+    # =========================================================================
+    # THREE-QUANTITY SYSTEM (Phase 4B Step 2)
+    # =========================================================================
+    
+    # Semantic alias for quantity_packaging (commercial intent)
+    quantity_ordered = fields.Float(
+        string='Quantity Ordered',
+        compute='_compute_quantity_ordered',
+        inverse='_inverse_quantity_ordered',
+        store=True,
+        digits=(16, 3),
+        help="Commercial quantity - what customer ordered (in packages)"
+    )
+    
+    # Unit conversions for produced/loaded quantities
+    quantity_produced_units = fields.Float(
+        string='Produced (Units)',
+        compute='_compute_quantity_produced_units',
+        store=True,
+        digits=(16, 3),
+        help="Produced quantity in product UOM"
+    )
+    
+    quantity_loaded_units = fields.Float(
+        string='Loaded (Units)',
+        compute='_compute_quantity_loaded_units',
+        store=True,
+        digits=(16, 3),
+        help="Loaded quantity in product UOM"
+    )
+    
+    # Variance tracking
+    quantity_variance_production = fields.Float(
+        string='Production Variance',
+        compute='_compute_quantity_variances',
+        store=True,
+        digits=(16, 3),
+        help="Difference between ordered and produced"
+    )
+    
+    quantity_variance_loading = fields.Float(
+        string='Loading Variance',
+        compute='_compute_quantity_variances',
+        store=True,
+        digits=(16, 3),
+        help="Difference between produced and loaded"
+    )
+    
+    quantity_variance_total = fields.Float(
+        string='Total Variance',
+        compute='_compute_quantity_variances',
+        store=True,
+        digits=(16, 3),
+        help="Difference between ordered and loaded"
+    )
+    
+    # Enhanced status indicators
+    production_status = fields.Selection([
+        ('pending', 'Pending Production'),
+        ('in_progress', 'In Production'),
+        ('completed', 'Production Complete'),
+        ('variance', 'Quantity Variance')
+    ], string='Production Status',
+        compute='_compute_production_status',
+        store=True
+    )
+    
+    loading_status = fields.Selection([
+        ('pending', 'Pending Loading'),
+        ('loaded', 'Loaded'),
+        ('variance', 'Loading Variance')
+    ], string='Loading Status',
+        compute='_compute_loading_status',
+        store=True
+    )
+    
+    # =========================================================================
+    # COMPUTED METHODS - THREE-QUANTITY SYSTEM
+    # =========================================================================
+    
+    @api.depends('quantity_packaging')
+    def _compute_quantity_ordered(self):
+        """Alias for quantity_packaging for semantic clarity"""
+        for line in self:
+            line.quantity_ordered = line.quantity_packaging
+    
+    def _inverse_quantity_ordered(self):
+        """Write back to quantity_packaging"""
+        for line in self:
+            line.quantity_packaging = line.quantity_ordered
+    
+    @api.depends('quantity_produced', 'product_packaging_id.qty')
+    def _compute_quantity_produced_units(self):
+        """Convert produced packages to units"""
+        for line in self:
+            if line.quantity_produced and line.product_packaging_id:
+                line.quantity_produced_units = (
+                    line.quantity_produced * line.product_packaging_id.qty
+                )
+            else:
+                line.quantity_produced_units = 0.0
+    
+    @api.depends('quantity_loaded', 'product_packaging_id.qty')
+    def _compute_quantity_loaded_units(self):
+        """Convert loaded packages to units"""
+        for line in self:
+            if line.quantity_loaded and line.product_packaging_id:
+                line.quantity_loaded_units = (
+                    line.quantity_loaded * line.product_packaging_id.qty
+                )
+            else:
+                line.quantity_loaded_units = 0.0
+    
+    @api.depends('quantity_packaging', 'quantity_produced', 'quantity_loaded')
+    def _compute_quantity_variances(self):
+        """Calculate variances at each stage"""
+        for line in self:
+            ordered = line.quantity_packaging or 0.0
+            produced = line.quantity_produced or 0.0
+            loaded = line.quantity_loaded or 0.0
+            
+            line.quantity_variance_production = produced - ordered
+            line.quantity_variance_loading = loaded - produced
+            line.quantity_variance_total = loaded - ordered
+    
+    @api.depends('quantity_produced', 'quantity_packaging')
+    def _compute_production_status(self):
+        """Visual indicator for production completion"""
+        for line in self:
+            if not line.quantity_produced:
+                line.production_status = 'pending'
+            elif abs(line.quantity_produced - line.quantity_packaging) < 0.001:
+                line.production_status = 'completed'
+            elif abs(line.quantity_produced - line.quantity_packaging) > 0.001:
+                line.production_status = 'variance'
+            else:
+                line.production_status = 'in_progress'
+    
+    @api.depends('quantity_loaded', 'quantity_produced', 'quantity_packaging')
+    def _compute_loading_status(self):
+        """Visual indicator for loading completion"""
+        for line in self:
+            if not line.quantity_loaded:
+                line.loading_status = 'pending'
+            else:
+                # Compare loaded to produced (if available) or ordered
+                expected = line.quantity_produced or line.quantity_packaging
+                if abs(line.quantity_loaded - expected) < 0.001:
+                    line.loading_status = 'loaded'
+                else:
+                    line.loading_status = 'variance'
+    
+    # =========================================================================
+    # EXISTING METHODS (preserved from original)
+    # =========================================================================
+    
     @api.depends('product_packaging_id')
     def _compute_packaging_uom(self):
         """

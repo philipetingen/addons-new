@@ -1,239 +1,311 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Deal Line Form View (for popup editing) -->
+    <!-- ================================================================ -->
+    <!-- DEAL LINE VIEWS -->
+    <!-- ================================================================ -->
+    
+    <!-- Deal Line Tree View -->
+    <record id="view_dm_deal_line_tree" model="ir.ui.view">
+        <field name="name">dm.deal.line.tree</field>
+        <field name="model">dm.deal.line</field>
+        <field name="arch" type="xml">
+            <tree string="Deal Lines" 
+                  decoration-warning="production_status == 'variance' or loading_status == 'variance'"
+                  decoration-muted="deal_state == 'cancelled'">
+                
+                <field name="deal_id"/>
+                <field name="product_id"/>
+                <field name="product_packaging_id"/>
+                
+                <!-- Three-Quantity Display -->
+                <field name="quantity_packaging" string="Ordered" sum="Total Ordered"/>
+                <field name="quantity_produced" string="Produced" optional="show" sum="Total Produced"/>
+                <field name="quantity_loaded" string="Loaded" optional="show" sum="Total Loaded"/>
+                
+                <!-- Variance Columns -->
+                <field name="quantity_variance_production" 
+                       string="Prod. Var." 
+                       optional="hide"
+                       decoration-danger="quantity_variance_production &lt; 0"/>
+                <field name="quantity_variance_loading" 
+                       string="Load Var." 
+                       optional="hide"
+                       decoration-danger="quantity_variance_loading &lt; 0"/>
+                
+                <!-- Status Indicators -->
+                <field name="production_status" widget="badge" optional="show"/>
+                <field name="loading_status" widget="badge" optional="show"/>
+                
+                <!-- Prices and Amounts -->
+                <field name="price_packaging_sale" string="Sale Price"/>
+                <field name="amount_sale" sum="Total Sale"/>
+                <field name="price_packaging_purchase" string="Purchase Price" optional="hide"/>
+                <field name="amount_purchase" sum="Total Purchase" optional="hide"/>
+                <field name="margin_amount" sum="Total Margin" optional="show"/>
+                <field name="margin_percentage" avg="Avg Margin %" optional="show"/>
+                
+                <!-- Hidden fields for conditions -->
+                <field name="deal_state" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Deal Line Form View -->
     <record id="view_dm_deal_line_form" model="ir.ui.view">
         <field name="name">dm.deal.line.form</field>
         <field name="model">dm.deal.line</field>
         <field name="arch" type="xml">
             <form string="Deal Line">
                 <sheet>
-                    <!-- Hidden fields for conditions -->
-                    <field name="deal_state" invisible="1"/>
-                    <field name="deal_id" invisible="1"/>
-                    
                     <group>
-                        <group string="Product">
-                            <field name="customer_product_code" placeholder="Customer code..."/>
-                            <field name="product_id" required="1"/>
-                            <field name="customer_product_description"/>
+                        <group string="Product Information">
+                            <field name="deal_id" readonly="1"/>
+                            <field name="product_id" 
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
                             <field name="product_packaging_id" 
                                    domain="[('product_id', '=', product_id)]"
-                                   required="1"/>
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
                             <field name="packaging_uom_id" readonly="1"/>
-                            <field name="supplier_id" readonly="1"/>
+                            <field name="container_type_id" readonly="1"/>
                         </group>
                         
-                        <group string="Quantities">
-                            <!-- Entry mode selector -->
-                            <field name="entry_mode" widget="radio"/>
+                        <group string="Customer Reference">
+                            <field name="customer_product_code"/>
+                            <field name="customer_product_description"/>
+                            <field name="supplier_id" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <!-- Quantities Page (NEW - Phase 4B Step 2) -->
+                        <page string="Quantities" name="quantities">
+                            <group>
+                                <group string="Entry Mode">
+                                    <field name="entry_mode" widget="radio"/>
+                                </group>
+                                <group/>
+                            </group>
                             
-                            <!-- Package entry (readonly when in kg mode) -->
-                            <field name="quantity_packaging" 
-                                   readonly="entry_mode == 'kg'"
-                                   required="entry_mode == 'pkg'"/>
+                            <group>
+                                <group string="Ordered (Commercial)">
+                                    <field name="quantity_packaging" 
+                                           string="Packages Ordered"
+                                           readonly="deal_id.lines_readonly"/>
+                                    <field name="quantity_units" 
+                                           string="Units Ordered"
+                                           readonly="1"/>
+                                    <field name="weight" 
+                                           string="Weight (kg)"
+                                           readonly="entry_mode == 'pkg'"/>
+                                </group>
+                                
+                                <group string="Produced (Actual)">
+                                    <field name="quantity_produced" 
+                                           string="Packages Produced"
+                                           readonly="1"/>
+                                    <field name="quantity_produced_units" 
+                                           string="Units Produced"
+                                           readonly="1"/>
+                                    <field name="quantity_variance_production"
+                                           decoration-danger="quantity_variance_production &lt; 0"
+                                           decoration-success="quantity_variance_production &gt; 0"/>
+                                    <field name="production_status" widget="badge"/>
+                                </group>
+                            </group>
                             
-                            <!-- Weight entry (readonly when in pkg mode) -->
-                            <field name="weight" 
-                                   readonly="entry_mode == 'pkg'"
-                                   required="entry_mode == 'kg'"/>
+                            <group>
+                                <group string="Loaded (Shipped)">
+                                    <field name="quantity_loaded" 
+                                           string="Packages Loaded"
+                                           readonly="1"/>
+                                    <field name="quantity_loaded_units" 
+                                           string="Units Loaded"
+                                           readonly="1"/>
+                                    <field name="quantity_variance_loading"
+                                           decoration-danger="quantity_variance_loading &lt; 0"
+                                           decoration-success="quantity_variance_loading &gt; 0"/>
+                                    <field name="loading_status" widget="badge"/>
+                                </group>
+                                
+                                <group string="Summary">
+                                    <field name="quantity_variance_total" 
+                                           string="Total Variance (Ordered → Loaded)"
+                                           decoration-danger="quantity_variance_total &lt; 0"
+                                           decoration-success="quantity_variance_total &gt; 0"/>
+                                    <field name="production_progress" widget="percentage"/>
+                                </group>
+                            </group>
                             
-                            <!-- Computed reference values -->
-                            <field name="quantity_units" 
-                                   readonly="1"
-                                   string="≈ Units"/>
-                        </group>
-                    </group>
-                    
-                    <group string="Pricing">
-                        <group string="Sales">
-                            <field name="price_packaging_sale" widget="monetary"/>
-                            <field name="price_unit_sale" readonly="1" widget="monetary"/>
-                            <field name="price_per_kg_sale" readonly="1" widget="monetary"/>
-                            <field name="amount_sale" readonly="1" widget="monetary"/>
-                        </group>
-                        <group string="Purchase">
-                            <field name="price_packaging_purchase" widget="monetary"/>
-                            <field name="price_unit_purchase" readonly="1" widget="monetary"/>
-                            <field name="price_per_kg_purchase" readonly="1" widget="monetary"/>
-                            <field name="amount_purchase" readonly="1" widget="monetary"/>
-                        </group>
-                    </group>
-                    
-                    <group string="Margin">
-                        <field name="margin_amount" readonly="1" widget="monetary"/>
-                        <field name="margin_percentage" readonly="1" widget="percentage"/>
-                    </group>
-                    
-                    <group string="Container Requirements">
-                        <group>
-                            <field name="container_type_id" readonly="1"/>
-                            <label for="containers_required"/>
-                            <div>
-                                <field name="containers_required" class="oe_inline"/>
-                                <field name="container_calculation_method" 
-                                       class="oe_inline ml8" 
-                                       widget="badge"
-                                       decoration-info="container_calculation_method == 'packaging'"
-                                       decoration-success="container_calculation_method == 'volume'"
-                                       decoration-warning="container_calculation_method == 'weight'"
-                                       decoration-muted="container_calculation_method == 'manual'"/>
-                            </div>
-                            <field name="container_teu" readonly="1"/>
-                        </group>
-                        <group>
-                            <field name="container_calculation_warning" 
-                                   invisible="container_calculation_warning == False"
-                                   readonly="1"
-                                   class="text-warning"/>
-                        </group>
-                    </group>
-                    
-                    <group string="Progress Tracking" invisible="deal_state == 'draft'">
-                        <group>
-                            <field name="quantity_produced" readonly="1"/>
-                            <field name="production_status" widget="badge" readonly="1"/>
-                            <field name="quantity_loaded" readonly="1"/>
-                            <field name="quantity_invoiced" readonly="1"/>
-                        </group>
-                        <group>
-                            <field name="production_progress" widget="progressbar"/>
-                            <field name="sale_order_line_id" readonly="1"/>
-                            <field name="purchase_order_line_id" readonly="1"/>
-                        </group>
-                    </group>
-                    
-                    <field name="notes" placeholder="Additional notes..." colspan="2"/>
+                            <separator string="Invoicing Tracking"/>
+                            <group>
+                                <group>
+                                    <field name="quantity_invoiced" readonly="1"/>
+                                </group>
+                                <group/>
+                            </group>
+                        </page>
+                        
+                        <!-- Pricing Page -->
+                        <page string="Pricing" name="pricing">
+                            <group>
+                                <group string="Sale Pricing">
+                                    <field name="price_packaging_sale" 
+                                           string="Price per Package"
+                                           readonly="deal_id.prices_readonly"/>
+                                    <field name="price_unit_sale" 
+                                           string="Price per Unit"
+                                           readonly="1"/>
+                                    <field name="price_per_kg_sale" 
+                                           string="Price per kg"
+                                           readonly="1"/>
+                                    <field name="amount_sale" readonly="1"/>
+                                </group>
+                                
+                                <group string="Purchase Pricing">
+                                    <field name="price_packaging_purchase" 
+                                           string="Price per Package"
+                                           readonly="deal_id.prices_readonly"/>
+                                    <field name="price_unit_purchase" 
+                                           string="Price per Unit"
+                                           readonly="1"/>
+                                    <field name="price_per_kg_purchase" 
+                                           string="Price per kg"
+                                           readonly="1"/>
+                                    <field name="amount_purchase" readonly="1"/>
+                                </group>
+                            </group>
+                            
+                            <group>
+                                <group string="Margin">
+                                    <field name="margin_amount" readonly="1"/>
+                                    <field name="margin_percentage" readonly="1" widget="percentage"/>
+                                </group>
+                                <group>
+                                    <field name="currency_id" invisible="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <!-- Container Calculations Page -->
+                        <page string="Containers" name="containers">
+                            <group>
+                                <group string="Container Requirements">
+                                    <field name="containers_required"/>
+                                    <field name="container_calculation_method" readonly="1"/>
+                                    <field name="container_teu" readonly="1"/>
+                                </group>
+                                <group string="Container Type">
+                                    <field name="container_type_id" readonly="1"/>
+                                </group>
+                            </group>
+                            
+                            <group>
+                                <field name="container_calculation_warning" 
+                                       readonly="1"
+                                       invisible="not container_calculation_warning"
+                                       class="alert alert-warning"/>
+                            </group>
+                        </page>
+                        
+                        <!-- Links & References Page -->
+                        <page string="Links" name="links">
+                            <group>
+                                <group string="Sales Order">
+                                    <field name="sale_order_line_id" readonly="1"/>
+                                </group>
+                                <group string="Purchase Order">
+                                    <field name="purchase_order_line_id" readonly="1"/>
+                                </group>
+                            </group>
+                            
+                            <group>
+                                <group string="Status">
+                                    <field name="deal_state" readonly="1"/>
+                                </group>
+                                <group>
+                                    <field name="sequence"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <!-- Notes Page -->
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Internal notes about this line..."/>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
     </record>
     
-    <!-- Deal Line Tree View (for inline editing in deal form) -->
-    <record id="view_dm_deal_line_tree" model="ir.ui.view">
-        <field name="name">dm.deal.line.tree</field>
+    <!-- Deal Line Search View -->
+    <record id="view_dm_deal_line_search" model="ir.ui.view">
+        <field name="name">dm.deal.line.search</field>
         <field name="model">dm.deal.line</field>
         <field name="arch" type="xml">
-            <tree string="Deal Lines" 
-                  editable="bottom"
-                  decoration-success="production_status == 'complete'"
-                  decoration-warning="production_status == 'partial'">
+            <search string="Deal Lines">
+                <field name="deal_id"/>
+                <field name="product_id"/>
+                <field name="product_packaging_id"/>
+                <field name="customer_product_code"/>
                 
-                <!-- Hidden fields for conditions -->
-                <field name="entry_mode" invisible="1"/>
-                <field name="deal_id" invisible="1"/>
-                <field name="deal_state" invisible="1"/>
-                <field name="packaging_uom_id" invisible="1"/>
+                <filter string="Production Pending" 
+                        name="production_pending"
+                        domain="[('production_status', '=', 'pending')]"/>
+                <filter string="Production Variance" 
+                        name="production_variance"
+                        domain="[('production_status', '=', 'variance')]"/>
+                <filter string="Production Complete" 
+                        name="production_complete"
+                        domain="[('production_status', '=', 'completed')]"/>
                 
-                <field name="sequence" widget="handle" width="30px"/>
+                <separator/>
                 
-                <!-- Customer code first for quick entry -->
-                <field name="customer_product_code" placeholder="Customer code..." width="120px"/>
+                <filter string="Loading Pending" 
+                        name="loading_pending"
+                        domain="[('loading_status', '=', 'pending')]"/>
+                <filter string="Loading Variance" 
+                        name="loading_variance"
+                        domain="[('loading_status', '=', 'variance')]"/>
+                <filter string="Loaded" 
+                        name="loaded"
+                        domain="[('loading_status', '=', 'loaded')]"/>
                 
-                <field name="product_id" required="1" width="200px"/>
-                <field name="product_packaging_id" 
-                       domain="[('product_id', '=', product_id)]"
-                       required="1"
-                       width="120px"/>
+                <separator/>
                 
-                <!-- Supplier -->
-                <field name="supplier_id" optional="show" readonly="1" width="150px"/>
+                <filter string="Active Deals" 
+                        name="active_deals"
+                        domain="[('deal_state', 'not in', ['cancelled', 'completed'])]"/>
                 
-                <!-- Entry mode toggle -->
-                <field name="entry_mode" widget="radio" width="80px"/>
-                
-                <!-- Package quantity -->
-                <field name="quantity_packaging" 
-                       readonly="entry_mode == 'kg'"
-                       required="entry_mode == 'pkg'"
-                       force_save="1"
-                       sum="Total"
-                       width="100px"/>
-                
-                <!-- Weight -->
-                <field name="weight" 
-                       readonly="entry_mode == 'pkg'"
-                       required="entry_mode == 'kg'"
-                       force_save="1"
-                       sum="Total Weight"
-                       width="100px"/>
-                
-                <!-- Production tracking -->
-                <field name="quantity_produced" 
-                       readonly="1" 
-                       optional="show"
-                       width="100px"/>
-                <field name="production_status" 
-                       widget="badge" 
-                       readonly="1"
-                       optional="show"
-                       width="100px"/>
-                
-                <!-- Reference fields -->
-                <field name="quantity_units" optional="hide" readonly="1" sum="Total Units" width="80px"/>
-                
-                <!-- Pricing -->
-                <field name="price_packaging_sale" 
-                       widget="monetary"
-                       required="1"
-                       width="120px"/>
-                       
-                <field name="price_per_kg_sale" 
-                       readonly="1"
-                       widget="monetary"
-                       optional="show"
-                       width="100px"/>
-                       
-                <field name="amount_sale" 
-                       readonly="1" 
-                       widget="monetary"
-                       sum="Total"
-                       width="120px"/>
-                
-                <field name="price_packaging_purchase" 
-                       widget="monetary"
-                       optional="show"
-                       width="120px"/>
-                       
-                <field name="amount_purchase" 
-                       readonly="1" 
-                       widget="monetary"
-                       optional="show"
-                       sum="Total"
-                       width="120px"/>
-                
-                <field name="margin_percentage" 
-                       readonly="1" 
-                       widget="percentage"
-                       optional="show"
-                       width="80px"/>
-                
-                <!-- Container calculations -->
-                <field name="containers_required" 
-                       optional="show"
-                       sum="Total"
-                       width="90px"/>
-                
-                <field name="container_calculation_method" 
-                       optional="hide"
-                       widget="badge"
-                       decoration-info="container_calculation_method == 'packaging'"
-                       decoration-success="container_calculation_method == 'volume'"
-                       decoration-warning="container_calculation_method == 'weight'"
-                       decoration-muted="container_calculation_method == 'manual'"
-                       width="90px"/>
-                
-                <field name="container_teu"
-                       optional="show"
-                       readonly="1"
-                       sum="Total TEU"
-                       width="80px"/>
-                
-                <field name="container_type_id" optional="show" width="100px"/>
-                <field name="production_progress" widget="progressbar" optional="show" width="100px"/>
-                
-                <!-- Customer description (optional) -->
-                <field name="customer_product_description" optional="hide" width="150px"/>
-            </tree>
+                <group expand="0" string="Group By">
+                    <filter string="Deal" name="group_deal" context="{'group_by': 'deal_id'}"/>
+                    <filter string="Product" name="group_product" context="{'group_by': 'product_id'}"/>
+                    <filter string="Packaging" name="group_packaging" context="{'group_by': 'product_packaging_id'}"/>
+                    <filter string="Production Status" name="group_production_status" context="{'group_by': 'production_status'}"/>
+                    <filter string="Loading Status" name="group_loading_status" context="{'group_by': 'loading_status'}"/>
+                    <filter string="Deal State" name="group_deal_state" context="{'group_by': 'deal_state'}"/>
+                </group>
+            </search>
         </field>
     </record>
+    
+    <!-- Deal Line Action -->
+    <record id="action_dm_deal_line" model="ir.actions.act_window">
+        <field name="name">Deal Lines</field>
+        <field name="res_model">dm.deal.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{
+            'search_default_active_deals': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No deal lines found
+            </p>
+            <p>
+                Deal lines are created within deals. Click on a deal to manage its lines.
+            </p>
+        </field>
+    </record>
+    
 </odoo>

@@ -145,7 +145,7 @@
                         <button name="action_select_template" 
                                 string="Select Template Now" 
                                 type="object" 
-                                class="btn btn-sm btn-warning" 
+                                class="btn-primary btn-sm" 
                                 style="margin-left: 10px;"/>
                     </div>
 
@@ -238,14 +238,28 @@
                         </group>
                     </group>
                     
+                    <!-- QUANTITY SUMMARY (Phase 4B Step 2) -->
+                    <group name="quantity_summary" string="Quantity Summary">
+                        <group>
+                            <field name="total_quantity_ordered" string="Total Ordered (Packages)"/>
+                            <field name="total_quantity_produced" string="Total Produced (Packages)"/>
+                        </group>
+                        <group>
+                            <field name="total_quantity_loaded" string="Total Loaded (Packages)"/>
+                            <field name="quantity_completion_rate" widget="percentage"/>
+                        </group>
+                    </group>
+                    
                     <notebook>
-                        <!-- Products Tab -->
+                        <!-- Products Tab - THREE-QUANTITY COLUMNS (Phase 4B Step 2) -->
                         <page string="Products" name="products">
                             <field name="line_ids" 
                                    widget="one2many" 
                                    readonly="lines_readonly"
                                    context="{'default_deal_id': active_id}">
-                                <tree editable="bottom">
+                                <tree editable="bottom"
+                                      decoration-warning="production_status == 'variance' or loading_status == 'variance'"
+                                      decoration-muted="deal_state == 'cancelled'">
                                     <field name="sequence" widget="handle"/>
                                     <field name="product_id" 
                                            readonly="parent.lines_readonly"
@@ -255,15 +269,52 @@
                                            readonly="parent.lines_readonly"
                                            required="1"
                                            domain="[('product_id', '=', product_id)]"/>
+                                    
+                                    <!-- THREE-QUANTITY DISPLAY (Phase 4B Step 2) -->
                                     <field name="quantity_packaging" 
                                            readonly="parent.lines_readonly"
-                                           string="Qty (Packages)"/>
+                                           string="Ordered"
+                                           sum="Total Ordered"/>
+                                    
+                                    <field name="quantity_produced" 
+                                           string="Produced" 
+                                           readonly="1"
+                                           optional="show"
+                                           sum="Total Produced"/>
+                                    
+                                    <field name="quantity_loaded" 
+                                           string="Loaded" 
+                                           readonly="1"
+                                           optional="show"
+                                           sum="Total Loaded"/>
+                                    
+                                    <!-- VARIANCE COLUMNS (optional, hidden by default) -->
+                                    <field name="quantity_variance_production" 
+                                           string="Prod. Var." 
+                                           readonly="1"
+                                           optional="hide"
+                                           decoration-danger="quantity_variance_production &lt; 0"
+                                           decoration-success="quantity_variance_production &gt; 0"/>
+                                    
+                                    <field name="quantity_variance_loading" 
+                                           string="Load Var." 
+                                           readonly="1"
+                                           optional="hide"
+                                           decoration-danger="quantity_variance_loading &lt; 0"
+                                           decoration-success="quantity_variance_loading &gt; 0"/>
+                                    
+                                    <!-- STATUS INDICATORS (hidden, for decoration conditions) -->
+                                    <field name="production_status" invisible="1"/>
+                                    <field name="loading_status" invisible="1"/>
+                                    
                                     <field name="packaging_uom_id" 
                                            readonly="1"
-                                           string="Package UoM"/>
+                                           string="Package UoM"
+                                           optional="hide"/>
                                     <field name="quantity_units" 
                                            readonly="1"
-                                           string="Qty (Units)"/>
+                                           string="Qty (Units)"
+                                           optional="hide"/>
                                     <field name="price_packaging_sale" 
                                            readonly="parent.prices_readonly"
                                            widget="monetary"
@@ -271,7 +322,8 @@
                                     <field name="price_packaging_purchase" 
                                            readonly="parent.prices_readonly"
                                            widget="monetary"
-                                           string="Purchase Price/Pkg"/>
+                                           string="Purchase Price/Pkg"
+                                           optional="hide"/>
                                     <field name="amount_sale" 
                                            readonly="1"
                                            widget="monetary"
@@ -279,7 +331,8 @@
                                     <field name="amount_purchase" 
                                            readonly="1"
                                            widget="monetary"
-                                           sum="Total Purchase"/>
+                                           sum="Total Purchase"
+                                           optional="hide"/>
                                     <field name="margin_amount" 
                                            readonly="1"
                                            widget="monetary"
@@ -290,7 +343,11 @@
                                            string="Margin %"/>
                                     <field name="container_type_id" 
                                            readonly="1"
-                                           string="Container"/>
+                                           string="Container"
+                                           optional="hide"/>
+                                    
+                                    <!-- HIDDEN FIELDS FOR CONDITIONS -->
+                                    <field name="deal_state" invisible="1"/>
                                     <field name="currency_id" invisible="1"/>
                                 </tree>
                             </field>
