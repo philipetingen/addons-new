@@ -9,10 +9,8 @@ _logger = logging.getLogger(__name__)
 class DmDeal(models.Model):
     """Main Deal Management Model - CORE
     
-    File restructuring v3.0:
-    - Merged state machine from dm_deal_state_machine.py
-    - Added 'partial' and 'completed' states
-    - Refined state machine for Phase 4B
+    File restructuring v3.1:
+    - Milestone logic extracted to dm_deal_milestones.py
     - Core fields and state management only
     - Extensions in domain-specific files
     """
@@ -80,7 +78,7 @@ class DmDeal(models.Model):
     )
     
     # ============================================================
-    # STATE MANAGEMENT - REFINED FOR PHASE 4B
+    # STATE MANAGEMENT
     # ============================================================
     
     state = fields.Selection([
@@ -97,7 +95,7 @@ class DmDeal(models.Model):
     ], string='Status', default='draft', required=True, tracking=True)
 
     # =======================================================================
-    # FIELD LOCKING LOGIC (Phase 4B Step 1)
+    # FIELD LOCKING LOGIC
     # =======================================================================
 
     lines_readonly = fields.Boolean(
@@ -132,19 +130,7 @@ class DmDeal(models.Model):
 
     @api.depends('state')
     def _compute_readonly_fields(self):
-        """
-        Compute field lock status based on deal state.
-        
-        Lock Rules:
-        - Lines: Lock at confirmed (committed to customer)
-        - Prices: Lock at confirmed (commercial commitment)
-        - Customer: Lock at confirmed (can't change who deal is for)
-        - Vendor: Lock at confirmed (can't change supplier)
-        - Dates: Lock at confirmed (committed delivery schedule)
-        
-        Production dates (rts_current, rts_actual) remain editable during production
-        via CASCADE overrides.
-        """
+        """Compute field lock status based on deal state"""
         lock_states = [
             'confirmed', 'partial', 'allocated', 
             'ready', 'shipping', 'delivered', 'completed'
@@ -159,7 +145,7 @@ class DmDeal(models.Model):
             deal.dates_readonly = is_locked
 
     # =======================================================================
-    # SMART BUTTON COUNTS (Phase 4B Step 1)
+    # SMART BUTTON COUNTS
     # =======================================================================
 
     sale_order_count = fields.Integer(
@@ -241,128 +227,6 @@ class DmDeal(models.Model):
         compute='_compute_shipment_lock',
         string='Shipment Lock Reason',
         help='Shipment causing the lock'
-    )
-    
-    # ============================================================
-    # MILESTONE MATRIX - THREE-LAYER DATES
-    # ============================================================
-    
-    # Milestone 1: Order Confirmation (uses confirmation_date)
-    
-    # Milestone 2: Production Start
-    production_start_requested = fields.Date(
-        string='Production Start Requested',
-        tracking=True,
-        help='Original requested production start date'
-    )
-    production_start_current = fields.Date(
-        string='Production Start Current',
-        tracking=True,
-        help='Current planned production start date'
-    )
-    production_start_actual = fields.Date(
-        string='Production Start Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual production start date (set by production module)'
-    )
-    production_start_calculated = fields.Date(
-        string='Calculated Production Start',
-        compute='_compute_production_start_calculated',
-        store=True,
-        help='Auto-calculated: RTS - Production Cycle Time'
-    )
-    
-    # Milestone 3: Ready to Ship (RTS)
-    rts_requested = fields.Date(
-        string='RTS Requested',
-        help='Ready to Ship date requested by customer',
-        tracking=True,
-        readonly="state not in ['draft', 'confirmed']"
-    )
-    rts_current = fields.Date(
-        string='RTS Current',
-        help='Negotiated Ready to Ship date',
-        tracking=True
-    )
-    rts_actual = fields.Date(
-        string='RTS Actual',
-        help='Actual Ready to Ship date',
-        readonly=True,
-        tracking=True
-    )
-    
-    # Milestone 4: Loading
-    loading_requested = fields.Date(
-        string='Loading Requested',
-        tracking=True,
-        help='Requested loading date at factory'
-    )
-    loading_current = fields.Date(
-        string='Loading Current',
-        tracking=True,
-        help='Current planned loading date'
-    )
-    loading_actual = fields.Date(
-        string='Loading Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual loading date (set by shipment module)'
-    )
-    
-    # Milestone 5: ETD (Estimated Time of Departure)
-    etd_requested = fields.Date(
-        string='ETD Requested',
-        tracking=True,
-        help='Requested vessel departure date'
-    )
-    etd_current = fields.Date(
-        string='ETD Current',
-        tracking=True,
-        help='Current estimated departure date'
-    )
-    etd_actual = fields.Date(
-        string='ETD Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual departure date (set by shipment module)'
-    )
-    
-    # Milestone 6: ETA (Estimated Time of Arrival)
-    eta_requested = fields.Date(
-        string='ETA Requested',
-        help='Arrival date requested by customer',
-        tracking=True,
-        readonly="state not in ['draft', 'confirmed']"
-    )
-    eta_current = fields.Date(
-        string='ETA Current',
-        help='Current estimated arrival date',
-        tracking=True
-    )
-    eta_actual = fields.Date(
-        string='ETA Actual',
-        help='Actual arrival date',
-        readonly=True,
-        tracking=True
-    )
-    
-    # Milestone 7: Delivery
-    delivery_requested = fields.Date(
-        string='Delivery Requested',
-        tracking=True,
-        help='Requested final delivery date to customer'
-    )
-    delivery_current = fields.Date(
-        string='Delivery Current',
-        tracking=True,
-        help='Current planned delivery date'
-    )
-    delivery_actual = fields.Date(
-        string='Delivery Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual delivery date to customer'
     )
     
     # ============================================================
@@ -600,7 +464,7 @@ class DmDeal(models.Model):
     )
     
     # ============================================================
-    # QUANTITY SUMMARIES (Phase 4B Step 2)
+    # QUANTITY SUMMARIES
     # ============================================================
     
     total_quantity_ordered = fields.Float(
@@ -665,7 +529,7 @@ class DmDeal(models.Model):
     
     @api.depends('line_ids', 'line_ids.product_id')
     def _compute_product_ids(self):
-        """Compute unique products from deal lines, sorted by category."""
+        """Compute unique products from deal lines, sorted by category"""
         for deal in self:
             if not deal.line_ids:
                 deal.product_ids = False
@@ -688,47 +552,6 @@ class DmDeal(models.Model):
             
             deal.product_ids = sorted_products
 
-    def get_milestone_date(self, milestone_code, prefer='best'):
-        """
-        Get milestone date with fallback logic.
-        CRITICAL: Single source of truth for milestone dates.
-        
-        Args:
-            milestone_code: 'order_conf', 'prod_start', 'rts', 'loading', 
-                           'etd', 'eta', 'delivery'
-            prefer: 'actual', 'current', 'requested', or 'best' (auto-select)
-        
-        Returns:
-            Date or False
-        """
-        self.ensure_one()
-        
-        mapping = {
-            'order_conf': (self.confirmation_date, self.confirmation_date, self.confirmation_date),
-            'prod_start': (self.production_start_requested, self.production_start_current or self.production_start_calculated, self.production_start_actual),
-            'rts': (self.rts_requested, self.rts_current, self.rts_actual),
-            'loading': (self.loading_requested, self.loading_current, self.loading_actual),
-            'etd': (self.etd_requested, self.etd_current, self.etd_actual),
-            'eta': (self.eta_requested, self.eta_current, self.eta_actual),
-            'delivery': (self.delivery_requested, self.delivery_current, self.delivery_actual),
-        }
-        
-        dates = mapping.get(milestone_code)
-        if not dates:
-            _logger.warning(f"Unknown milestone code: {milestone_code}")
-            return False
-        
-        requested, current, actual = dates
-        
-        if prefer == 'actual':
-            return actual
-        elif prefer == 'current':
-            return current or requested
-        elif prefer == 'requested':
-            return requested
-        else:  # 'best'
-            return actual or current or requested
-
     @api.depends('sale_payment_term_id')
     def _compute_payment_term_backward(self):
         for deal in self:
@@ -743,25 +566,6 @@ class DmDeal(models.Model):
     def _compute_incoterm_location_backward(self):
         for deal in self:
             deal.incoterm_location = deal.sale_incoterm_location
-
-    @api.depends('rts_current', 'rts_requested', 'line_ids.product_id.total_production_cycle', 'production_start_requested')
-    def _compute_production_start_calculated(self):
-        """Calculate production start date from RTS minus production cycle"""
-        for deal in self:
-            if deal.production_start_requested:
-                deal.production_start_calculated = deal.production_start_requested
-                continue
-            
-            rts_date = deal.rts_current or deal.rts_requested
-            
-            if rts_date and deal.line_ids:
-                max_cycle = max(
-                    (line.product_id.total_production_cycle or 21)
-                    for line in deal.line_ids
-                )
-                deal.production_start_calculated = rts_date - timedelta(days=max_cycle)
-            else:
-                deal.production_start_calculated = False
 
     @api.depends('sale_order_ids.state', 'purchase_order_ids.state')
     def _compute_confirmation_status(self):
@@ -913,7 +717,7 @@ class DmDeal(models.Model):
                     deal.allocation_status = 'partial'
     
     # ============================================================
-    # STATE MACHINE - MERGED FROM dm_deal_state_machine.py
+    # STATE MACHINE
     # ============================================================
     
     @api.depends('allocation_ids.state', 'allocation_ids.allocation_type', 'sale_order_ids', 'purchase_order_ids')
@@ -977,21 +781,19 @@ class DmDeal(models.Model):
                         _logger.info(f"Deal {deal.name}: {old_state} → {new_state} (shipment in progress)")
                     continue
             
-            # Priority 3: Production ready, shipment not yet shipped → ready
+            # Priority 3: Production ready → ready
             if pr_allocs:
                 ready_prs = [
-                    a for a in pr_allocs
-                    if a.production_run_id 
-                    and a.production_run_id.state in ['ready', 'completed']  # ✅ CORRECT
+                    a for a in pr_allocs 
+                    if a.production_run_id and a.production_run_id.state == 'ready'
                 ]
-                
-                if ready_prs and len(ready_prs) == len(pr_allocs):
+                if ready_prs:
                     if ship_allocs:
-                        not_shipped = all(
-                            a.shipment_id.state in ['draft', 'confirmed', 'loading']
-                            for a in ship_allocs if a.shipment_id
-                        )
-                        if not_shipped:
+                        unshipped = [
+                            a for a in ship_allocs
+                            if a.shipment_id and a.shipment_id.state not in ['shipped', 'arrived', 'delivered']
+                        ]
+                        if unshipped:
                             new_state = 'ready'
                             if old_state != new_state:
                                 deal.state = new_state
@@ -1045,10 +847,7 @@ class DmDeal(models.Model):
                     _logger.info(f"Deal {deal.name}: {old_state} → {new_state} (no allocations or SO/PO)")
     
     def action_complete(self):
-        """
-        Mark deal as completed (manual closure by manager).
-        Can only be done from 'delivered' state.
-        """
+        """Mark deal as completed (manual closure by manager)"""
         for deal in self:
             if deal.state != 'delivered':
                 raise UserError(_(
@@ -1090,10 +889,7 @@ class DmDeal(models.Model):
         return True
     
     def action_reopen(self):
-        """
-        Reopen a completed deal (back to delivered state).
-        Manager action only.
-        """
+        """Reopen a completed deal (back to delivered state)"""
         for deal in self:
             if deal.state != 'completed':
                 raise UserError(_(
@@ -1166,7 +962,7 @@ class DmDeal(models.Model):
                         "To edit: Cancel allocation → Modify deal → Reallocate"
                     ) % (deal.shipment_lock_reason, ', '.join(attempted_ship_changes)))
         
-        # Date cascade logging
+        # Date cascade logging (delegated to milestones mixin)
         for deal in self:
             if 'rts_current' in vals and vals['rts_current'] != deal.rts_current:
                 if hasattr(deal, 'cascade_date_change'):
@@ -1189,17 +985,3 @@ class DmDeal(models.Model):
             self._check_auto_confirmation()
         
         return res
-    
-    # ============================================================
-    # ONCHANGE METHODS
-    # ============================================================
-    
-    @api.onchange('rts_requested')
-    def _onchange_rts_requested(self):
-        if self.rts_requested and not self.rts_current:
-            self.rts_current = self.rts_requested
-    
-    @api.onchange('eta_requested')  
-    def _onchange_eta_requested(self):
-        if self.eta_requested and not self.eta_current:
-            self.eta_current = self.eta_requested

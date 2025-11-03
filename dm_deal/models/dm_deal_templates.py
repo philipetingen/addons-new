@@ -1,5 +1,6 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from datetime import timedelta
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -16,9 +17,7 @@ class DmDealTemplates(models.Model):
     
     @api.onchange('line_ids')
     def _onchange_apply_template(self):
-        """
-        Enhanced onchange with template validation for subsequent lines.
-        """
+        """Enhanced onchange with template validation for subsequent lines"""
         if not self.line_ids or self._context.get('no_template'):
             return
         
@@ -34,9 +33,7 @@ class DmDealTemplates(models.Model):
         return self._apply_template_from_lines()
 
     def _validate_new_line_template(self):
-        """
-        Validate that newly added line's product matches current deal template.
-        """
+        """Validate that newly added line's product matches current deal template"""
         self.ensure_one()
         
         if not self.line_ids or not self.template_id:
@@ -175,9 +172,7 @@ class DmDealTemplates(models.Model):
         }
 
     def apply_selected_template_from_wizard(self, template_id):
-        """
-        Apply template selected from wizard.
-        """
+        """Apply template selected from wizard"""
         self.ensure_one()
         
         template = self.env['dm.deal.template'].browse(template_id)
@@ -191,7 +186,14 @@ class DmDealTemplates(models.Model):
             )
     
     def apply_template(self, template):
-        """Apply template settings to deal"""
+        """
+        Apply template settings to deal, including milestone calculation from lead times.
+        
+        Lead Time Logic:
+        - If ETA exists: Calculate backward (ETD, Loading)
+        - If RTS exists: Calculate forward (Loading, ETD, ETA)
+        - Production Start always calculated from RTS when available
+        """
         self.ensure_one()
         
         if not template:
@@ -228,17 +230,102 @@ class DmDealTemplates(models.Model):
             if field_name in valid_fields and field_value:
                 values[field_name] = field_value
         
-        # Apply values
+        # Apply commercial terms first
         if values:
             self.write(values)
             _logger.info(f"Applied template {template.name} to deal {self.name}")
         
+        # Calculate milestone dates from lead times
+        self._calculate_milestone_dates_from_template(template)
+        
         return True
     
+    def _calculate_milestone_dates_from_template(self, template):
+        """
+        Calculate milestone dates using template lead times.
+        
+        Calculation Strategy:
+        1. If ETA_requested exists → work backward
+        2. Else if RTS_requested exists → work forward for loading/ETD
+        3. Else skip (user will enter manually)
+        
+        Lead Time Fields from Template:
+        - production_lead_time: Days before RTS to start production
+        - transit_lead_time: Days from ETD to ETA
+        - total_lead_time: Not used (informational only)
+        """
+        self.ensure_one()
+        milestone_vals = {}
+        
+        # Strategy 1: Work backward from ETA
+        if self.eta_requested:
+            eta_date = self.eta_requested
+            
+            # ETD = ETA - transit_lead_time
+            if template.transit_lead_time and not self.etd_requested:
+                etd_date = eta_date - timedelta(days=template.transit_lead_time)
+                milestone_vals['etd_requested'] = etd_date
+                milestone_vals['etd_current'] = etd_date
+                _logger.info(f"Calculated ETD: {etd_date} (ETA - {template.transit_lead_time} days)")
+                
+                # Loading = ETD - 3 days (standard loading buffer)
+                if not self.loading_requested:
+                    loading_date = etd_date - timedelta(days=3)
+                    milestone_vals['loading_requested'] = loading_date
+                    milestone_vals['loading_current'] = loading_date
+                    _logger.info(f"Calculated Loading: {loading_date} (ETD - 3 days)")
+        
+        # Strategy 2: Work forward from RTS
+        elif self.rts_requested:
+            rts_date = self.rts_requested
+            
+            # Loading = RTS + 3 days (standard buffer)
+            if not self.loading_requested:
+                loading_date = rts_date + timedelta(days=3)
+                milestone_vals['loading_requested'] = loading_date
+                milestone_vals['loading_current'] = loading_date
+                _logger.info(f"Calculated Loading: {loading_date} (RTS + 3 days)")
+                
+                # ETD = Loading + 2 days (standard departure after loading)
+                if not self.etd_requested:
+                    etd_date = loading_date + timedelta(days=2)
+                    milestone_vals['etd_requested'] = etd_date
+                    milestone_vals['etd_current'] = etd_date
+                    _logger.info(f"Calculated ETD: {etd_date} (Loading + 2 days)")
+                    
+                    # ETA = ETD + transit_lead_time
+                    if template.transit_lead_time and not self.eta_requested:
+                        eta_date = etd_date + timedelta(days=template.transit_lead_time)
+                        milestone_vals['eta_requested'] = eta_date
+                        milestone_vals['eta_current'] = eta_date
+                        _logger.info(f"Calculated ETA: {eta_date} (ETD + {template.transit_lead_time} days)")
+        
+        # Production Start calculation (from RTS if available)
+        if self.rts_requested and template.production_lead_time:
+            if not self.production_start_requested:
+                prod_start = self.rts_requested - timedelta(days=template.production_lead_time)
+                milestone_vals['production_start_requested'] = prod_start
+                milestone_vals['production_start_current'] = prod_start
+                _logger.info(f"Calculated Production Start: {prod_start} (RTS - {template.production_lead_time} days)")
+        
+        # Apply calculated milestones with skip_milestone_warnings context
+        if milestone_vals:
+            self.with_context(skip_milestone_warnings=True).write(milestone_vals)
+            _logger.info(f"Applied {len(milestone_vals)} calculated milestone dates to deal {self.name}")
+            
+            # Log what was calculated
+            self.message_post(
+                body=_('<b>📅 Milestone Dates Calculated</b><br/><br/>From template: %s<br/><br/>%s') % (
+                    template.name,
+                    '<br/>'.join([f"• {k.replace('_', ' ').title()}: {v}" for k, v in milestone_vals.items()])
+                ),
+                subject=_('Milestones Calculated'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+    
     def action_select_template(self):
-        """
-        Manual action to open template selection wizard.
-        """
+        """Manual action to open template selection wizard"""
         self.ensure_one()
         
         # Find matching templates

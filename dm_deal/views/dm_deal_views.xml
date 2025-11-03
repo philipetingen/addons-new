@@ -390,95 +390,127 @@
                             </group>
                         </page>
                         
-                        <!-- Milestones Tab -->
+						<!-- Milestones Tab -->
                         <page string="Milestones">
+                            <div class="alert alert-info" role="alert" style="margin: 16px;">
+                                <p class="mb-0">
+                                    <strong>Three-Layer Date Management:</strong><br/>
+                                    • <strong>Requested:</strong> Initial timeline from customer/negotiation<br/>
+                                    • <strong>Current:</strong> Negotiated/updated schedule (editable until actual)<br/>
+                                    • <strong>Actual:</strong> When milestone truly happened (auto-set by system)
+                                </p>
+                            </div>
                             
-                            <separator string="Milestone 2: Production Start"/>
+                            <!-- MILESTONE 1: PRODUCTION START -->
+                            <separator string="MILESTONE 1: PRODUCTION START"/>
                             <group col="4">
-                                <label for="production_start_requested" string="Prod. Start"/>
                                 <field name="production_start_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="production_start_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="production_start_current"
+                                       string="Current"
+                                       readonly="production_start_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="production_start_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="production_start_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <separator string="Milestone 3: Ready to Ship (RTS)"/>
+                            <!-- MILESTONE 2: READY TO SHIP (RTS) -->
+                            <separator string="MILESTONE 2: READY TO SHIP (RTS)"/>
                             <group col="4">
-                                <label for="rts_requested" string="RTS"/>
                                 <field name="rts_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="rts_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="rts_current"
+                                       string="Current"
+                                       readonly="rts_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="rts_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="rts_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <separator string="Milestone 4: Loading"/>
+                            <!-- MILESTONE 3: LOADING -->
+                            <separator string="MILESTONE 3: LOADING"/>
                             <group col="4">
-                                <label for="loading_requested" string="Loading"/>
                                 <field name="loading_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="loading_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="loading_current"
+                                       string="Current"
+                                       readonly="loading_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="loading_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="loading_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <separator string="Milestone 5: Vessel Departure (ETD)"/>
+                            <!-- MILESTONE 4: VESSEL DEPARTURE (ETD) -->
+                            <separator string="MILESTONE 4: VESSEL DEPARTURE (ETD)"/>
                             <group col="4">
-                                <label for="etd_requested" string="ETD"/>
                                 <field name="etd_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="etd_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="etd_current"
+                                       string="Current"
+                                       readonly="etd_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="etd_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="etd_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <separator string="Milestone 6: Port Arrival (ETA)"/>
+                            <!-- MILESTONE 5: PORT ARRIVAL (ETA) -->
+                            <separator string="MILESTONE 5: PORT ARRIVAL (ETA)"/>
                             <group col="4">
-                                <label for="eta_requested" string="ETA"/>
                                 <field name="eta_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="eta_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="eta_current"
+                                       string="Current"
+                                       readonly="eta_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="eta_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="eta_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <separator string="Milestone 7: Final Delivery"/>
+                            <!-- MILESTONE 6: FINAL DELIVERY -->
+                            <separator string="MILESTONE 6: FINAL DELIVERY"/>
                             <group col="4">
-                                <label for="delivery_requested" string="Delivery"/>
                                 <field name="delivery_requested" 
+                                       string="Requested"
                                        readonly="dates_readonly"
-                                       placeholder="Requested..."/>
-                                <field name="delivery_current" placeholder="Current..."/>
+                                       class="fw-bold"/>
+                                <field name="delivery_current"
+                                       string="Current"
+                                       readonly="delivery_actual or dates_readonly"
+                                       class="text-primary"/>
                                 <field name="delivery_actual" 
-                                       readonly="1" 
-                                       placeholder="Actual..."
-                                       decoration-success="delivery_actual"/>
+                                       string="Actual"
+                                       readonly="1"
+                                       class="text-success"/>
                             </group>
                             
-                            <group>
-                                <div class="alert alert-warning" role="alert" invisible="state in ['draft', 'validated']">
-                                    <p class="mb-0">
-                                        <strong>⚠️ Note:</strong> Actual dates are set automatically by production and shipment modules.
-                                        Do not edit these manually unless correcting an error.
-                                    </p>
-                                </div>
-                            </group>
+                            <div class="alert alert-warning" role="alert" 
+                                 invisible="state in ['draft', 'validated']"
+                                 style="margin: 16px;">
+                                <p class="mb-0">
+                                    <strong>⚠️ Note:</strong> Actual dates are set automatically by production and shipment modules.
+                                    Do not edit these manually unless correcting an error.
+                                </p>
+                            </div>
                         </page>
                         
                         <!-- Template Tab -->

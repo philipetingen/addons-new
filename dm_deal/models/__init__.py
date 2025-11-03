@@ -1,6 +1,7 @@
 from . import dm_deal_template
 from . import dm_deal
 from . import dm_deal_workflow
+from . import dm_deal_milestones
 from . import dm_deal_documents
 from . import dm_deal_templates
 from . import dm_deal_line
