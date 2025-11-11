@@ -250,13 +250,20 @@ class DmInvoiceSplitConfig(models.Model):
             else:
                 config.include_insurance = False
     
-    @api.depends('deal_id', 'deal_id.shipment_ids')  # FIX: Changed from shipment_id to shipment_ids
     def _compute_shipment_id(self):
-        """Get shipment from deal - takes the first active shipment"""
         for config in self:
-            if config.deal_id and config.deal_id.shipment_ids:
-                # Take the first shipment (or apply business logic to select the right one)
-                config.shipment_id = config.deal_id.shipment_ids[:1]
+            # Safe check for shipment_ids field
+            if config.deal_id:
+                try:
+                    # Check if field exists and is accessible
+                    if hasattr(config.deal_id, 'shipment_ids') and config.deal_id.shipment_ids:
+                        # ... existing code (keep whatever was here)
+                        config.shipment_id = config.deal_id.shipment_ids[0] if config.deal_id.shipment_ids else False
+                    else:
+                        config.shipment_id = False
+                except Exception as e:
+                    _logger.debug(f"Could not access shipment_ids for deal {config.deal_id.name}: {e}")
+                    config.shipment_id = False
             else:
                 config.shipment_id = False
     

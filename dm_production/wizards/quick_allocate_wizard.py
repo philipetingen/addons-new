@@ -80,7 +80,7 @@ class ProductionQuickAllocateWizard(models.TransientModel):
         ('new', 'Create New Production Run'),
         ('existing', 'Allocate to Existing Production Run')
     ], string='Allocation Mode',
-        default='new',  # FIXED: Most common case in real world
+        default='new',  # Most common case in real world
         required=True
     )
     
@@ -210,7 +210,7 @@ class ProductionQuickAllocateWizard(models.TransientModel):
                 ('supplier_id', '=', wizard.supplier_id.id)
             ]
             
-            # Optional: Filter by RTS date proximity (±14 days)
+            # Optional: Filter by date range (±2 weeks from deal RTS)
             if wizard.rts_date:
                 from datetime import timedelta
                 date_from = wizard.rts_date - timedelta(days=14)
@@ -290,7 +290,7 @@ class ProductionQuickAllocateWizard(models.TransientModel):
             if self.deal_id:
                 self.new_pr_rts_date = self.deal_id.rts_current or self.deal_id.rts_requested
                 if hasattr(self.deal_id, 'production_start_current'):
-                    self.new_pr_production_start = self.deal_id.production_start_current
+                    self.new_pr_production_start = self.deal_id.production_start_current or self.deal_id.production_start_requested
     
     @api.onchange('deal_id')
     def _onchange_deal_id(self):
@@ -298,7 +298,7 @@ class ProductionQuickAllocateWizard(models.TransientModel):
         if self.allocation_mode == 'new' and self.deal_id:
             self.new_pr_rts_date = self.deal_id.rts_current or self.deal_id.rts_requested
             if hasattr(self.deal_id, 'production_start_current'):
-                self.new_pr_production_start = self.deal_id.production_start_current
+                self.new_pr_production_start = self.deal_id.production_start_current or self.deal_id.production_start_requested
     
     # ========================================================================
     # ACTION METHODS
@@ -328,12 +328,27 @@ class ProductionQuickAllocateWizard(models.TransientModel):
             if not self.new_pr_rts_date:
                 raise UserError(_('Please specify RTS date for new production run'))
             
-            # Create new production run
-            pr = self.env['dm.production.run'].create({
+            # Create new production run with three-layer fields
+            pr_vals = {
                 'supplier_id': self.supplier_id.id,
-                'rts_date': self.new_pr_rts_date,
-                'production_start_date': self.new_pr_production_start,
-            })
+            }
+            
+            # Use three-layer date fields
+            if hasattr(self.env['dm.production.run'], 'production_start_current'):
+                if self.new_pr_production_start:
+                    pr_vals['production_start_requested'] = self.new_pr_production_start
+                    pr_vals['production_start_current'] = self.new_pr_production_start
+                if self.new_pr_rts_date:
+                    pr_vals['rts_requested'] = self.new_pr_rts_date
+                    pr_vals['rts_current'] = self.new_pr_rts_date
+            else:
+                # Fallback to legacy fields
+                if self.new_pr_production_start:
+                    pr_vals['production_start_date'] = self.new_pr_production_start
+                if self.new_pr_rts_date:
+                    pr_vals['rts_date'] = self.new_pr_rts_date
+            
+            pr = self.env['dm.production.run'].create(pr_vals)
             _logger.info(f"Created new production run {pr.name} for deal {self.deal_id.name}")
         
         # Create allocation
@@ -344,26 +359,19 @@ class ProductionQuickAllocateWizard(models.TransientModel):
             'state': 'active',
         })
         
-        # FIX: Create production lines from deal lines
+        # Create production lines from deal lines
         self._create_production_lines_for_deal(pr, self.deal_id)
         
-        _logger.info(
-            f"Quick allocated Deal {self.deal_id.name} to PR {pr.name}"
-        )
+        _logger.info(f"Quick allocated Deal {self.deal_id.name} to PR {pr.name}")
         
-        # Return success with option to view PR
+        # Return to PR form
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Allocated Successfully'),
-                'message': _(
-                    'Deal %s allocated to Production Run %s'
-                ) % (self.deal_id.name, pr.name),
-                'type': 'success',
-                'sticky': False,
-                'next': {'type': 'ir.actions.act_window_close'},
-            }
+            'type': 'ir.actions.act_window',
+            'name': _('Production Run'),
+            'res_model': 'dm.production.run',
+            'res_id': pr.id,
+            'view_mode': 'form',
+            'target': 'current',
         }
     
     def _create_production_lines_for_deal(self, production_run, deal):

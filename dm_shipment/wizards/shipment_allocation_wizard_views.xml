@@ -1,10 +1,105 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_shipment_allocation_wizard_form" model="ir.ui.view">
+    <!-- ============================================================ -->
+    <!-- Shipment Allocation Wizard Form -->
+    <!-- ============================================================ -->
+    <record id="view_dm_shipment_allocation_wizard_form" model="ir.ui.view">
         <field name="name">dm.shipment.allocation.wizard.form</field>
         <field name="model">dm.shipment.allocation.wizard</field>
         <field name="arch" type="xml">
-            <form><group><field name="deal_ids" widget="many2many_tags" readonly="1"/><field name="create_new_shipment"/></group><group invisible="create_new_shipment == False"><field name="loading_port_id" required="create_new_shipment"/><field name="discharge_port_id" required="create_new_shipment"/><field name="etd"/><field name="eta"/></group><group invisible="create_new_shipment == True"><field name="shipment_id"/></group><footer><button name="action_allocate" string="Allocate" type="object" class="btn-primary"/><button string="Cancel" special="cancel"/></footer></form>
+            <form string="Allocate to Shipment">
+                <sheet>
+                    <group>
+                        <group string="Production Runs to Allocate">
+                            <field name="production_run_ids" widget="many2many_tags" readonly="1"/>
+                        </group>
+                        <group string="Shipment Mode">
+                            <field name="shipment_mode" widget="radio"/>
+                            <field name="shipment_id" 
+                                   invisible="shipment_mode != 'existing'"
+                                   required="shipment_mode == 'existing'"/>
+                        </group>
+                    </group>
+                    
+                    <separator string="Validation Results"/>
+                    
+                    <!-- Validation Summary (HTML display) -->
+                    <group>
+                        <field name="validation_summary" nolabel="1" widget="html"/>
+                    </group>
+                    
+                    <!-- Route Override (visible if mixed ports detected) -->
+                    <group string="Route Override" invisible="not has_soft_warnings or shipment_mode != 'new'">
+                        <group>
+                            <field name="use_route_override" widget="boolean_toggle"/>
+                            <field name="loading_port_id" 
+                                   invisible="not use_route_override"
+                                   required="use_route_override"/>
+                            <field name="discharge_port_id"
+                                   invisible="not use_route_override"
+                                   required="use_route_override"/>
+                        </group>
+                        <group>
+                            <div class="alert alert-info" invisible="not use_route_override">
+                                <p><strong>Override Mode:</strong></p>
+                                <p>Selected ports will be used for the new shipment, 
+                                   overriding any mixed ports from deals.</p>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <!-- Date Strategy (visible if mixed dates detected) -->
+                    <group string="Loading Date Strategy" invisible="not has_soft_warnings or shipment_mode != 'new'">
+                        <group>
+                            <field name="loading_date_strategy" widget="radio"/>
+                            <field name="loading_date_manual"
+                                   invisible="loading_date_strategy != 'manual'"
+                                   required="loading_date_strategy == 'manual'"/>
+                        </group>
+                        <group>
+                            <div class="alert alert-info">
+                                <p><strong>Date Strategy:</strong></p>
+                                <ul>
+                                    <li><strong>Earliest:</strong> Use earliest RTS date from PRs</li>
+                                    <li><strong>Latest:</strong> Use latest RTS date from PRs</li>
+                                    <li><strong>Manual:</strong> Specify loading date manually</li>
+                                </ul>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <!-- Hidden fields for compute -->
+                    <group invisible="1">
+                        <field name="has_hard_errors"/>
+                        <field name="has_soft_warnings"/>
+                        <field name="supplier_conflict"/>
+                        <field name="vendor_conflict"/>
+                        <field name="already_allocated_conflict"/>
+                        <field name="mixed_loading_ports"/>
+                        <field name="mixed_discharge_ports"/>
+                        <field name="mixed_rts_dates"/>
+                    </group>
+                </sheet>
+                
+                <footer>
+                    <button string="Allocate" 
+                            name="action_allocate"
+                            type="object"
+                            class="btn-primary"
+                            invisible="has_hard_errors"/>
+                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
         </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Wizard Action -->
+    <!-- ============================================================ -->
+    <record id="action_shipment_allocation_wizard" model="ir.actions.act_window">
+        <field name="name">Allocate to Shipment</field>
+        <field name="res_model">dm.shipment.allocation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
     </record>
 </odoo>

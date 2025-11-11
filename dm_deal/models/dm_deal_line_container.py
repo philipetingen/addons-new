@@ -11,14 +11,26 @@ class DmDealLineContainer(models.Model):
     _inherit = 'dm.deal.line'
     _description = 'Deal Line - Container Extension'
     
-    @api.depends('product_id')
+    @api.depends('product_id', 'product_id.effective_container_type_id')
     def _compute_container_type(self):
-        """Get container type from product"""
+        """Get container type from product's effective container type"""
         for line in self:
-            if line.product_id and hasattr(line.product_id, 'container_type_id'):
-                line.container_type_id = line.product_id.container_type_id
+            if line.product_id and hasattr(line.product_id, 'effective_container_type_id'):
+                line.container_type_id = line.product_id.effective_container_type_id
             else:
                 line.container_type_id = False
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Ensure container type is set on creation"""
+        records = super().create(vals_list)
+        
+        # Force compute container-related fields
+        records._compute_container_type()
+        records._compute_containers_required()
+        records._compute_container_teu()
+        
+        return records
     
     @api.depends('quantity_packaging', 'product_id.master_carton_id', 
                  'product_id.cartons_per_container', 'product_id.container_cbm',

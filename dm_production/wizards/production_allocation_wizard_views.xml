@@ -1,37 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     
-    <!-- Production Allocation Wizard Form -->
     <record id="view_production_allocation_wizard_form" model="ir.ui.view">
         <field name="name">dm.production.allocation.wizard.form</field>
         <field name="model">dm.production.allocation.wizard</field>
         <field name="arch" type="xml">
             <form string="Allocate to Production">
-                <group>
-                    <field name="deal_ids" widget="many2many_tags" readonly="1"/>
-                    <field name="create_new_pr"/>
-                </group>
-                
-                <group invisible="create_new_pr == False">
-                    <group string="New Production Run">
-                        <field name="supplier_id" required="create_new_pr == True"/>
-                        <field name="production_start_date"/>
-                        <field name="rts_date"/>
+                <sheet>
+                    <group>
+                        <group>
+							<field name="deal_ids" 
+								   widget="many2many_tags" 
+								   options="{'no_create': True}"
+								   domain="[('state', 'in', ['draft', 'confirmed']), '!', ('allocation_ids.allocation_type', '=', 'production'), '!', ('allocation_ids.state', '=', 'active')]"/>
+                            <field name="create_new_pr"/>
+                        </group>
                     </group>
-                </group>
-                
-                <group invisible="create_new_pr == True">
-                    <group string="Existing Production Run">
-                        <field name="production_run_id" required="create_new_pr == False"/>
+                    
+                    <!-- Existing Production Run -->
+                    <group invisible="create_new_pr">
+                        <field name="production_run_id" required="not create_new_pr"/>
                     </group>
-                </group>
+                    
+                    <!-- New Production Run -->
+                    <group invisible="not create_new_pr">
+                        <group>
+                            <field name="supplier_id" required="create_new_pr"/>
+                            <field name="supplier_warning" colspan="2"/>
+                        </group>
+                        
+                        <separator string="Date Strategy" colspan="2"/>
+                        <field name="date_strategy" widget="radio"/>
+                        
+                        <group colspan="2">
+                            <field name="date_info" colspan="2"/>
+                        </group>
+                        
+                        <group string="Production Dates" colspan="2">
+                            <field name="production_start_date" 
+                                   required="create_new_pr and date_strategy == 'manual'"
+                                   readonly="date_strategy != 'manual'"/>
+                            <field name="rts_date" 
+                                   required="create_new_pr and date_strategy == 'manual'"
+                                   readonly="date_strategy != 'manual'"/>
+                        </group>
+                    </group>
+                </sheet>
                 
                 <footer>
-                    <button name="action_allocate" string="Allocate" type="object" class="btn-primary"/>
-                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    <button string="Allocate" 
+                            name="action_allocate" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="Cancel" 
+                            class="btn-secondary" 
+                            special="cancel"/>
                 </footer>
             </form>
         </field>
     </record>
     
+    <!-- Action -->
+    <record id="action_production_allocation_wizard" model="ir.actions.act_window">
+        <field name="name">Allocate to Production</field>
+        <field name="res_model">dm.production.allocation.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">list</field>
+    </record>
+
 </odoo>

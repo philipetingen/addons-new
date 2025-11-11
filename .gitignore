@@ -1,1 +1,22 @@
 repository_analysis_2025-10-31_163107.txt
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Odoo specifics
+*.pyc
+*.pyo
+.odoo_rpc_history
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

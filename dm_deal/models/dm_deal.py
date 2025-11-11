@@ -703,7 +703,7 @@ class DmDeal(models.Model):
     @api.depends('allocation_ids.state', 'allocation_ids.allocation_type')
     def _compute_allocation_status(self):
         for deal in self:
-            active_allocs = deal.allocation_ids.filtered(lambda a: a.state == 'active')
+            active_allocs = deal.allocation_ids.filtered(lambda a: a.state == 'active','completed')
             
             if not active_allocs:
                 deal.allocation_status = 'unallocated'

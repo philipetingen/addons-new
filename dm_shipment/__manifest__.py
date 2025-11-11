@@ -64,6 +64,7 @@
         'security/ir.model.access.csv',
         'views/dm_shipment_views.xml',
         'views/dm_deal_shipment_views.xml',
+        'views/dm_production_run_shipment_views.xml',
         'wizards/shipment_allocation_wizard_views.xml',
         'data/shipment_server_actions.xml',
     ],

@@ -329,7 +329,7 @@ class DmDownpaymentRequest(models.Model):
     @api.depends('milestone_trigger', 'milestone_days', 'deal_id', 
                  'deal_id.confirmation_date', 'deal_id.production_start_current',
                  'deal_id.rts_current', 'deal_id.rts_actual',
-                 'deal_id.loading_date_current', 'deal_id.etd_current', 
+                 'deal_id.loading_current', 'deal_id.etd_current', 
                  'deal_id.eta_current', 'deal_id.eta_actual')
     def _compute_due_date(self):
         """Calculate due date based on milestone and CAD terms"""
@@ -353,8 +353,8 @@ class DmDownpaymentRequest(models.Model):
             elif request.milestone_trigger == 'rts':
                 base_date = request.deal_id.rts_actual or request.deal_id.rts_current
             elif request.milestone_trigger == 'loading':
-                if hasattr(request.deal_id, 'loading_date_current'):
-                    base_date = request.deal_id.loading_date_current
+                if hasattr(request.deal_id, 'loading_current'):
+                    base_date = request.deal_id.loading_current
             elif request.milestone_trigger == 'etd':
                 if hasattr(request.deal_id, 'etd_current'):
                     base_date = request.deal_id.etd_current

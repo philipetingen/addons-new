@@ -105,6 +105,32 @@ class DmShipment(models.Model):
     )
     
     # ========================================================================
+    # PRODUCTION RUN RELATIONSHIPS (PHASE 5 SPRINT 1)
+    # ========================================================================
+    
+    production_run_ids = fields.Many2many(
+        'dm.production.run',
+        'dm_production_shipment_rel',
+        'shipment_id',
+        'production_run_id',
+        string='Production Runs',
+        help='Production runs allocated to this shipment'
+    )
+    
+    production_run_count = fields.Integer(
+        compute='_compute_production_run_count',
+        string='PR Count'
+    )
+    
+    # Indirect deal access (computed from PRs)
+    deal_ids_from_prs = fields.Many2many(
+        'dm.deal',
+        compute='_compute_deals_from_prs',
+        string='Deals (via PRs)',
+        help='Deals indirectly linked via production runs'
+    )
+    
+    # ========================================================================
     # NOTES
     # ========================================================================
     
@@ -127,6 +153,26 @@ class DmShipment(models.Model):
     def _compute_deal_count(self):
         for shipment in self:
             shipment.deal_count = len(shipment.deal_ids)
+    
+    @api.depends('production_run_ids')
+    def _compute_production_run_count(self):
+        """Count allocated production runs"""
+        for shipment in self:
+            shipment.production_run_count = len(shipment.production_run_ids)
+    
+    @api.depends('production_run_ids', 'production_run_ids.deal_ids')
+    def _compute_deals_from_prs(self):
+        """
+        Get deals indirectly through production runs.
+        
+        Sprint 1: PRs link to deals via dm.allocation
+        This provides indirect Deal→PR→Shipment chain
+        """
+        for shipment in self:
+            deals = self.env['dm.deal']
+            for pr in shipment.production_run_ids:
+                deals |= pr.deal_ids
+            shipment.deal_ids_from_prs = deals
     
     # ========================================================================
     # CRUD METHODS
@@ -320,3 +366,22 @@ class DmShipment(models.Model):
             'domain': [('id', 'in', self.deal_ids.ids)],
             'context': self.env.context,
         }
+
+    def action_view_production_runs(self):
+        """View allocated production runs"""
+        self.ensure_one()
+        
+        action = {
+            'type': 'ir.actions.act_window',
+            'name': _('Production Runs'),
+            'res_model': 'dm.production.run',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', self.production_run_ids.ids)],
+            'context': self.env.context,
+        }
+        
+        if len(self.production_run_ids) == 1:
+            action['view_mode'] = 'form'
+            action['res_id'] = self.production_run_ids.id
+        
+        return action

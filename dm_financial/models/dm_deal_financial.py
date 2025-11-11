@@ -28,33 +28,9 @@ class DmDeal(models.Model):
         help='Date when deal was confirmed (SO and PO confirmed)'
     )
     
-    production_start_current = fields.Date(
-        string='Production Start Date',
-        compute='_compute_production_dates',
-        store=True,
-        help='Current production start date from production runs (via allocations)'
-    )
-    
-    loading_date_current = fields.Date(
-        string='Loading Date',
-        compute='_compute_shipment_dates',
-        store=True,
-        help='Current loading date from shipments (via allocations)'
-    )
-    
-    etd_current = fields.Date(
-        string='ETD Current',
-        compute='_compute_shipment_dates',
-        store=True,
-        help='Current ETD from shipments (via allocations)'
-    )
-    
-    delivery_date = fields.Date(
-        string='Delivery Date',
-        compute='_compute_shipment_dates',
-        store=True,
-        help='Actual or expected delivery date'
-    )
+    # NOTE: Other milestone date fields (production_start_current, loading_current,
+    # etd_current, etc.) are defined in dm_deal_milestones.py
+    # This module only receives CASCADE updates for those fields
     
     # ============================================================
     # FINANCIAL TRACKING FIELDS
@@ -99,30 +75,50 @@ class DmDeal(models.Model):
     total_receivable = fields.Monetary(
         string='Total Receivable',
         compute='_compute_financial_summary',
+        store=True,
         currency_field='currency_id'
     )
     
     total_payable = fields.Monetary(
         string='Total Payable',
         compute='_compute_financial_summary',
+        store=True,
         currency_field='currency_id'
     )
     
     gross_margin = fields.Monetary(
         string='Gross Margin',
         compute='_compute_financial_summary',
+        store=True,
         currency_field='currency_id'
     )
     
     gross_margin_percent = fields.Float(
         string='Gross Margin %',
-        compute='_compute_financial_summary'
+        compute='_compute_financial_summary',
+        store=True,
+        digits=(5, 2)
     )
     
-    # Payment milestone dates (for reference)
+    # Payment terms
+    sale_payment_term_id = fields.Many2one(
+        'account.payment.term',
+        string='Customer Payment Terms',
+        tracking=True,
+        help='CAD payment term for customer'
+    )
+    
+    purchase_payment_term_id = fields.Many2one(
+        'account.payment.term',
+        string='Supplier Payment Terms',
+        tracking=True,
+        help='CAD payment term for supplier'
+    )
+    
     payment_milestone_dates = fields.Text(
         string='Payment Milestones',
-        compute='_compute_payment_milestones'
+        compute='_compute_payment_milestones',
+        help='Computed payment milestone schedule'
     )
     
     # Computed totals for compatibility
@@ -141,6 +137,23 @@ class DmDeal(models.Model):
     )
     
     # ============================================================
+    # MODULE AVAILABILITY CHECKS
+    # ============================================================
+    
+    @api.model
+    def _check_module_installed(self, module_name):
+        """Check if a module is installed
+        
+        Returns: True if installed, False otherwise
+        """
+        module = self.env['ir.module.module'].search([
+            ('name', '=', module_name),
+            ('state', '=', 'installed')
+        ], limit=1)
+        
+        return bool(module)
+    
+    # ============================================================
     # COMPUTE METHODS FOR MILESTONE DATES (ORCHESTRATOR-AWARE)
     # ============================================================
     
@@ -151,6 +164,7 @@ class DmDeal(models.Model):
         """Get production dates via orchestrator allocations OR estimate from RTS
         
         REFACTORED: Uses allocation_ids instead of direct production_run_ids access
+        FIX: Uses 'production' allocation type (not 'deal_to_production')
         """
         for deal in self:
             # Check if dm_production module is installed
@@ -158,8 +172,9 @@ class DmDeal(models.Model):
             
             if dm_production_installed and hasattr(deal, 'allocation_ids'):
                 # Get production runs via allocations (orchestrator pattern)
+                # FIX: Changed from 'deal_to_production' to 'production'
                 pr_allocations = deal.allocation_ids.filtered(
-                    lambda a: a.allocation_type == 'deal_to_production'
+                    lambda a: a.allocation_type == 'production'
                     and a.state in ['active', 'completed']
                     and hasattr(a, 'production_run_id')
                     and a.production_run_id
@@ -184,8 +199,8 @@ class DmDeal(models.Model):
                                 approx_start = run.rts_target - timedelta(days=14)
                                 start_dates.append(approx_start)
                         
-                        deal.production_start_current = min(start_dates) if start_dates else False
-                        if deal.production_start_current:
+                        if hasattr(deal, 'production_start_current') and start_dates:
+                            deal.production_start_current = min(start_dates)
                             _logger.info(
                                 f"Production start for {deal.name}: {deal.production_start_current} "
                                 f"(from {len(active_runs)} production run(s))"
@@ -193,22 +208,21 @@ class DmDeal(models.Model):
                             continue
             
             # FALLBACK: Estimate from RTS date (works with or without dm_production)
-            rts_date = deal.rts_actual or deal.rts_current or deal.rts_requested
-            if rts_date:
-                deal.production_start_current = rts_date - timedelta(days=14)
-                _logger.debug(
-                    f"Estimated production start for {deal.name}: {deal.production_start_current} "
-                    f"(14 days before RTS {rts_date})"
-                )
-            elif deal.confirmation_date:
+            if hasattr(deal, 'rts_actual'):
+                rts_date = deal.rts_actual or deal.rts_current or deal.rts_requested
+                if rts_date and hasattr(deal, 'production_start_current'):
+                    deal.production_start_current = rts_date - timedelta(days=14)
+                    _logger.debug(
+                        f"Estimated production start for {deal.name}: {deal.production_start_current} "
+                        f"(14 days before RTS {rts_date})"
+                    )
+            elif deal.confirmation_date and hasattr(deal, 'production_start_current'):
                 # Final fallback: confirmation date + 7 days
                 deal.production_start_current = deal.confirmation_date + timedelta(days=7)
                 _logger.debug(
                     f"Fallback production start for {deal.name}: {deal.production_start_current} "
                     f"(7 days after confirmation)"
                 )
-            else:
-                deal.production_start_current = False
     
     @api.depends('allocation_ids', 'allocation_ids.state',
                  'allocation_ids.allocation_type', 'allocation_ids.shipment_id')
@@ -216,6 +230,7 @@ class DmDeal(models.Model):
         """Get shipment dates via orchestrator allocations
         
         REFACTORED: Uses allocation_ids instead of direct shipment_ids access
+        FIX: Uses 'shipment' allocation type (not 'deal_to_shipment')
         """
         for deal in self:
             # Check if dm_shipment module is installed
@@ -223,8 +238,9 @@ class DmDeal(models.Model):
             
             if dm_shipment_installed and hasattr(deal, 'allocation_ids'):
                 # Get shipments via allocations (orchestrator pattern)
+                # FIX: Changed from 'deal_to_shipment' to 'shipment'
                 ship_allocations = deal.allocation_ids.filtered(
-                    lambda a: a.allocation_type == 'deal_to_shipment'
+                    lambda a: a.allocation_type == 'shipment'
                     and a.state in ['active', 'completed']
                     and hasattr(a, 'shipment_id')
                     and a.shipment_id
@@ -242,161 +258,111 @@ class DmDeal(models.Model):
                         
                         # Try different field names for loading date
                         if hasattr(ship, 'loading_date'):
-                            deal.loading_date_current = ship.loading_date
+                            if hasattr(deal, 'loading_current'):
+                                deal.loading_current = ship.loading_date
+                            elif hasattr(deal, 'loading_date_current'):
+                                deal.loading_date_current = ship.loading_date
                         elif hasattr(ship, 'loading_date_actual'):
-                            deal.loading_date_current = ship.loading_date_actual
-                        else:
-                            deal.loading_date_current = False
+                            if hasattr(deal, 'loading_current'):
+                                deal.loading_current = ship.loading_date_actual
+                            elif hasattr(deal, 'loading_date_current'):
+                                deal.loading_date_current = ship.loading_date_actual
                         
                         # ETD
                         if hasattr(ship, 'etd'):
-                            deal.etd_current = ship.etd
+                            if hasattr(deal, 'etd_current'):
+                                deal.etd_current = ship.etd
                         elif hasattr(ship, 'etd_current'):
-                            deal.etd_current = ship.etd_current
-                        else:
-                            deal.etd_current = False
+                            if hasattr(deal, 'etd_current'):
+                                deal.etd_current = ship.etd_current
                         
                         # Delivery date (use ETA as proxy)
                         if hasattr(ship, 'eta_actual'):
-                            deal.delivery_date = ship.eta_actual
+                            if hasattr(deal, 'delivery_current'):
+                                deal.delivery_current = ship.eta_actual
+                            elif hasattr(deal, 'delivery_date'):
+                                deal.delivery_date = ship.eta_actual
                         elif hasattr(ship, 'eta_current'):
-                            deal.delivery_date = ship.eta_current
+                            if hasattr(deal, 'delivery_current'):
+                                deal.delivery_current = ship.eta_current
+                            elif hasattr(deal, 'delivery_date'):
+                                deal.delivery_date = ship.eta_current
                         elif hasattr(ship, 'eta'):
-                            deal.delivery_date = ship.eta
-                        else:
-                            deal.delivery_date = False
+                            if hasattr(deal, 'delivery_current'):
+                                deal.delivery_current = ship.eta
+                            elif hasattr(deal, 'delivery_date'):
+                                deal.delivery_date = ship.eta
                         
                         continue
             
-            # No shipments or module not installed
-            deal.loading_date_current = False
-            deal.etd_current = False
-            deal.delivery_date = False
+            # No shipments or module not installed - clear fields if they exist
+            if hasattr(deal, 'loading_current'):
+                deal.loading_current = False
+            elif hasattr(deal, 'loading_date_current'):
+                deal.loading_date_current = False
+            
+            if hasattr(deal, 'etd_current'):
+                deal.etd_current = False
+            
+            if hasattr(deal, 'delivery_current'):
+                deal.delivery_current = False
+            elif hasattr(deal, 'delivery_date'):
+                deal.delivery_date = False
     
     # ============================================================
     # STATE CHANGE HOOKS (REFACTORED)
     # ============================================================
     
     def write(self, vals):
-        """
-        Override to capture confirmation date and handle financial document creation.
+        """Override to handle state changes and trigger DP creation"""
+        result = super(DmDeal, self).write(vals)
         
-        CRITICAL: Uses context flag to prevent duplicate DP creation during
-        multiple write() calls in the same transaction.
-        """
-        
-        # Capture confirmation date when state changes to confirmed
-        if vals.get('state') == 'confirmed':
+        # Trigger DP creation on confirmation
+        if 'state' in vals:
             for deal in self:
-                if not deal.confirmation_date:
-                    vals['confirmation_date'] = fields.Date.today()
-        
-        res = super().write(vals)
-        
-        # CRITICAL: Create downpayments ONLY when state changes to confirmed
-        # AND only if they don't already exist
-        # AND only if we're not already in a DP creation process
-        if vals.get('state') == 'confirmed' and not self.env.context.get('creating_downpayments'):
-            for deal in self:
-                # Check if downpayments already exist for this deal
-                existing_dps = self.env['dm.downpayment.request'].search_count([
-                    ('deal_id', '=', deal.id)
-                ])
-                
-                if existing_dps == 0:
-                    _logger.info(f"Creating downpayment requests for confirmed deal {deal.name}")
+                if deal.state == 'confirmed' and not deal.confirmation_date:
+                    deal.confirmation_date = fields.Date.today()
                     
-                    # Set context flag to prevent re-entry
-                    deal.with_context(creating_downpayments=True)._create_downpayment_requests()
-                    
-                    # Create invoice split config if needed
-                    if deal.invoice_split:
-                        deal.with_context(creating_downpayments=True)._create_invoice_split_config()
-                    
-                    # Generate cash flow projection
-                    if hasattr(deal, '_generate_cash_flow_projection'):
-                        deal.with_context(creating_downpayments=True)._generate_cash_flow_projection()
-                else:
-                    _logger.info(
-                        f"Downpayments already exist for deal {deal.name} "
-                        f"({existing_dps} found) - skipping creation"
-                    )
+                    # Create downpayments if payment term configured
+                    if deal.sale_payment_term_id or deal.purchase_payment_term_id:
+                        deal._create_downpayment_requests()
         
-        # Check if we should auto-confirm based on SO/PO states
-        # Only check if state wasn't explicitly set in this write
-        # AND if we're not already in a confirmation process
-        if not vals.get('state') and not self.env.context.get('skip_auto_confirm_check'):
-            self.with_context(skip_auto_confirm_check=True)._check_auto_confirmation()
-        
-        return res
+        return result
     
-    def _on_deal_confirmed(self):
-        """Hook called when deal transitions to confirmed state
-        
-        REFACTORED: Centralized financial document creation
-        Replaces the old action_confirm() override pattern
+    def action_confirm(self):
         """
-        self.ensure_one()
+        Confirm deal: SO and PO created/confirmed.
         
-        _logger.info(f"Deal {self.name} confirmed - triggering financial operations")
+        Note: Downpayment creation is handled by write() hook on state change.
+        This method only focuses on core confirmation logic.
+        """
+        result = super(DmDeal, self).action_confirm()
         
-        # 1. Create downpayment requests (if not already exist)
-        existing_dps = self.env['dm.downpayment.request'].search_count([
-            ('deal_id', '=', self.id)
-        ])
+        # Set confirmation date if not already set
+        for deal in self:
+            if not deal.confirmation_date:
+                deal.confirmation_date = fields.Date.today()
         
-        if existing_dps == 0:
-            _logger.info(f"  Creating downpayment requests for {self.name}")
-            self._create_downpayment_requests()
-        else:
-            _logger.info(
-                f"  Downpayments already exist for {self.name} ({existing_dps} records) - skipping"
-            )
-        
-        # 2. Create invoice split configuration if needed
-        if self.invoice_split and not self.invoice_split_config_id:
-            _logger.info(f"  Creating invoice split config for {self.name}")
-            self._create_invoice_split_config()
-        
-        # 3. Generate initial cash flow projection
-        _logger.info(f"  Generating cash flow projection for {self.name}")
-        self._generate_cash_flow_projection()
-        
-        _logger.info(f"Financial operations completed for {self.name}")
+        return result
     
     # ============================================================
-    # COMPUTE METHODS FOR FINANCIAL FIELDS
+    # COMPUTE METHODS FOR FINANCIAL TRACKING
     # ============================================================
     
-    @api.depends('line_ids.amount_sale', 'line_ids.amount_purchase')
+    @api.depends('line_ids', 'line_ids.amount_sale', 'line_ids.amount_purchase')
     def _compute_deal_totals(self):
-        """Compute deal totals if not already computed in base module"""
+        """Compute deal totals from lines"""
         for deal in self:
-            # Use existing fields if available, otherwise compute
-            if hasattr(deal, 'total_sale_amount'):
-                deal.total_value = deal.total_sale_amount
-            else:
-                deal.total_value = sum(deal.line_ids.mapped('amount_sale')) if deal.line_ids else 0.0
-            
-            if hasattr(deal, 'total_purchase_amount'):
-                deal.purchase_total = deal.total_purchase_amount
-            else:
-                deal.purchase_total = sum(deal.line_ids.mapped('amount_purchase')) if deal.line_ids else 0.0
+            deal.total_value = sum(deal.line_ids.mapped('amount_sale'))
+            deal.purchase_total = sum(deal.line_ids.mapped('amount_purchase'))
     
-    @api.depends('downpayment_request_ids', 'downpayment_request_ids.state', 'invoice_ids')
+    @api.depends('downpayment_request_ids', 'invoice_ids')
     def _compute_financial_counts(self):
-        """Compute financial document counts - only active documents"""
+        """Count downpayments and invoices"""
         for deal in self:
-            # Count only active downpayments (not cancelled)
-            active_dps = deal.downpayment_request_ids.filtered(
-                lambda dp: dp.state != 'cancelled'
-            )
-            deal.downpayment_count = len(active_dps)
-            
-            # Count only posted/draft invoices (not cancelled)
-            active_invoices = deal.invoice_ids.filtered(
-                lambda inv: inv.state != 'cancel'
-            )
+            deal.downpayment_count = len(deal.downpayment_request_ids)
+            # Count only active invoices
+            active_invoices = deal.invoice_ids.filtered(lambda i: i.state != 'cancel')
             deal.invoice_count = len(active_invoices)
     
     @api.depends('invoice_ids', 'downpayment_request_ids')
@@ -420,11 +386,12 @@ class DmDeal(models.Model):
             costs = sum(supplier_invoices.mapped('amount_total'))
             
             # Add freight and insurance if CIF
-            if deal.sale_incoterm_id and deal.sale_incoterm_id.code in ['CIF', 'CFR']:
-                if deal.invoice_split_config_id:
-                    costs += deal.invoice_split_config_id.freight_amount
-                    if deal.sale_incoterm_id.code == 'CIF':
-                        costs += deal.invoice_split_config_id.insurance_amount
+            if hasattr(deal, 'sale_incoterm_id') and deal.sale_incoterm_id:
+                if deal.sale_incoterm_id.code in ['CIF', 'CFR']:
+                    if deal.invoice_split_config_id:
+                        costs += deal.invoice_split_config_id.freight_amount
+                        if deal.sale_incoterm_id.code == 'CIF':
+                            costs += deal.invoice_split_config_id.insurance_amount
             
             deal.gross_margin = revenue - costs
             deal.gross_margin_percent = (deal.gross_margin / revenue * 100) if revenue else 0.0
@@ -802,8 +769,9 @@ class DmDeal(models.Model):
         # Check for shipment via allocations
         has_shipment = False
         if hasattr(self, 'allocation_ids'):
+            # FIX: Changed from 'deal_to_shipment' to 'shipment'
             ship_allocations = self.allocation_ids.filtered(
-                lambda a: a.allocation_type == 'deal_to_shipment'
+                lambda a: a.allocation_type == 'shipment'
                 and a.state in ['active', 'completed']
             )
             has_shipment = bool(ship_allocations)
@@ -830,20 +798,3 @@ class DmDeal(models.Model):
                 'view_mode': 'form',
                 'target': 'new',
             }
-    
-    # ============================================================
-    # UTILITY METHODS
-    # ============================================================
-    
-    @api.model
-    def _check_module_installed(self, module_name):
-        """Check if a module is installed
-        
-        Returns: True if installed, False otherwise
-        """
-        module = self.env['ir.module.module'].search([
-            ('name', '=', module_name),
-            ('state', '=', 'installed')
-        ], limit=1)
-        
-        return bool(module)

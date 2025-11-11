@@ -10,38 +10,39 @@
             
             <!-- Add ALL invisible fields at the very beginning, before the header -->
             <xpath expr="//header" position="before">
-                <!-- Milestone tracking fields -->
+                <!-- Milestone tracking fields (from dm_deal_milestones) -->
                 <field name="confirmation_date" invisible="1"/>
                 <field name="production_start_current" invisible="1"/>
-                <field name="loading_date_current" invisible="1"/>
+                <field name="loading_current" invisible="1"/>
                 <field name="etd_current" invisible="1"/>
-                <field name="delivery_date" invisible="1"/>
+                <field name="delivery_current" invisible="1"/>
                 <field name="rts_actual" invisible="1"/>
                 <field name="eta_actual" invisible="1"/>
+                
                 <!-- Financial counts -->
                 <field name="downpayment_count" invisible="1"/>
                 <field name="invoice_count" invisible="1"/>
-                <field name="payment_milestone_count" invisible="1"/>
-                <!-- Compatibility fields -->
+                
+                <!-- Deal totals (from dm_deal_financial) -->
                 <field name="total_value" invisible="1"/>
                 <field name="purchase_total" invisible="1"/>
+                
                 <!-- Relationships -->
                 <field name="invoice_split_config_id" invisible="1"/>
                 <field name="downpayment_request_ids" invisible="1"/>
-                <field name="payment_milestone_ids" invisible="1"/>
                 <field name="invoice_ids" invisible="1"/>
+                <field name="cash_flow_projection" invisible="1"/>
+                
                 <!-- Financial summary fields -->
                 <field name="payment_milestone_dates" invisible="1"/>
-                <field name="next_milestone_date" invisible="1"/>
-                <field name="payment_progress" invisible="1"/>
                 <field name="total_receivable" invisible="1"/>
                 <field name="total_payable" invisible="1"/>
                 <field name="gross_margin" invisible="1"/>
                 <field name="gross_margin_percent" invisible="1"/>
-                <field name="total_sale_amount" invisible="1"/>
-                <field name="total_purchase_amount" invisible="1"/>
-                <field name="margin_amount" invisible="1"/>
-                <field name="margin_percentage" invisible="1"/>
+                
+                <!-- Payment terms -->
+                <field name="sale_payment_term_id" invisible="1"/>
+                <field name="purchase_payment_term_id" invisible="1"/>
             </xpath>
             
             <!-- Add smart buttons in button box -->
@@ -52,6 +53,7 @@
                         icon="fa-money">
                     <field name="downpayment_count" widget="statinfo" string="Down Payments"/>
                 </button>
+                
                 <button name="action_view_invoices" 
                         type="object" 
                         class="oe_stat_button" 
@@ -59,19 +61,14 @@
                         invisible="invoice_count == 0">
                     <field name="invoice_count" widget="statinfo" string="Invoices"/>
                 </button>
-                <button name="action_view_payment_milestones" 
-                        type="object" 
-                        class="oe_stat_button" 
-                        icon="fa-calendar-check-o"
-                        invisible="payment_milestone_count == 0">
-                    <field name="payment_milestone_count" widget="statinfo" string="Milestones"/>
-                </button>
+                
                 <button name="action_view_cash_flow" 
                         type="object" 
                         class="oe_stat_button" 
                         icon="fa-line-chart">
                     <span class="o_stat_text">Cash Flow</span>
                 </button>
+                
                 <button name="action_generate_invoices" 
                         type="object"
                         class="oe_stat_button" 
@@ -83,7 +80,7 @@
             
             <!-- Add milestone badges below title for quick visibility -->
             <xpath expr="//div[@class='oe_title']" position="after">
-                <group invisible="not confirmation_date and not production_start_current and not loading_date_current">
+                <group invisible="not confirmation_date and not production_start_current and not loading_current">
                     <group colspan="4" class="oe_inline">
                         <span class="o_form_label">Key Milestones</span>
                         <div class="o_row">
@@ -93,11 +90,11 @@
                             <span class="badge badge-warning me-2" invisible="not production_start_current">
                                 <i class="fa fa-industry"/> Production: <field name="production_start_current" readonly="1"/>
                             </span>
-                            <span class="badge badge-primary me-2" invisible="not loading_date_current">
-                                <i class="fa fa-truck"/> Loading: <field name="loading_date_current" readonly="1"/>
+                            <span class="badge badge-primary me-2" invisible="not loading_current">
+                                <i class="fa fa-truck"/> Loading: <field name="loading_current" readonly="1"/>
                             </span>
-                            <span class="badge badge-success" invisible="not delivery_date">
-                                <i class="fa fa-home"/> Delivery: <field name="delivery_date" readonly="1"/>
+                            <span class="badge badge-success" invisible="not delivery_current">
+                                <i class="fa fa-home"/> Delivery: <field name="delivery_current" readonly="1"/>
                             </span>
                         </div>
                     </group>
@@ -109,13 +106,11 @@
                 <!-- Financial Summary Tab -->
                 <page string="Financial Summary" name="financial_summary">
                     <group>
-                        <group string="Deal Value">
-                            <field name="total_sale_amount" widget="monetary"/>
-                            <field name="total_purchase_amount" widget="monetary"/>
-                            <field name="margin_amount" widget="monetary"/>
-                            <field name="margin_percentage" widget="percentage"/>
+                        <group string="Deal Value (Contracted)">
+                            <field name="total_value" widget="monetary"/>
+                            <field name="purchase_total" widget="monetary"/>
                         </group>
-                        <group string="Outstanding Amounts">
+                        <group string="Outstanding Amounts (Invoices)">
                             <field name="total_receivable" widget="monetary"/>
                             <field name="total_payable" widget="monetary"/>
                             <field name="gross_margin" widget="monetary"/>
@@ -123,16 +118,17 @@
                         </group>
                     </group>
                     
-                    <group string="Payment Schedule Overview" invisible="not payment_milestone_dates">
-                        <field name="payment_milestone_dates" nolabel="1" readonly="1"/>
+                    <group string="Payment Terms">
+                        <group>
+                            <field name="sale_payment_term_id"/>
+                        </group>
+                        <group>
+                            <field name="purchase_payment_term_id"/>
+                        </group>
                     </group>
                     
-                    <group>
-                        <button name="action_generate_milestones" 
-                                string="Generate Payment Milestones" 
-                                type="object"
-                                class="btn-secondary"
-                                invisible="state not in ['confirmed', 'allocated', 'ready']"/>
+                    <group string="Payment Schedule Overview" invisible="not payment_milestone_dates">
+                        <field name="payment_milestone_dates" nolabel="1" readonly="1"/>
                     </group>
                 </page>
                 
@@ -143,80 +139,27 @@
                             <field name="confirmation_date" readonly="1"/>
                             <field name="production_start_current" readonly="1"/>
                             <field name="rts_actual" readonly="1"/>
-                            <field name="loading_date_current" readonly="1"/>
+                            <field name="loading_current" readonly="1"/>
                             <field name="etd_current" readonly="1"/>
                             <field name="eta_actual" readonly="1"/>
-                            <field name="delivery_date" readonly="1"/>
-                        </group>
-                        <group string="Payment Progress" colspan="2">
-                            <field name="payment_progress" widget="progressbar"/>
-                            <field name="next_milestone_date" readonly="1"/>
+                            <field name="delivery_current" readonly="1"/>
                         </group>
                     </group>
                     
-					<separator string="Milestone Details"/>
-
-					<field name="payment_milestone_ids" readonly="state == 'cancelled'">
-						<tree editable="bottom" 
-							  decoration-success="state == 'paid'"
-							  decoration-warning="state in ['due', 'requested']"
-							  decoration-info="state == 'pending'">
-							<field name="sequence" widget="handle"/>
-							<field name="milestone_type_id" required="1"/>
-							<field name="payment_type" required="1"/>
-							<field name="partner_id" readonly="1"/>
-							<field name="percentage" sum="Total %"/>
-							<field name="fixed_amount" sum="Total Fixed"/>
-							<field name="amount" sum="Total Amount" widget="monetary"/>
-							<field name="milestone_date"/>
-							<field name="due_date" readonly="1"/>
-							<field name="amount_paid" sum="Total Paid" widget="monetary"/>
-							<field name="amount_remaining" sum="Total Due" widget="monetary"/>
-							<field name="state" widget="badge"/>
-							<field name="currency_id" invisible="1"/>
-							<field name="downpayment_count" invisible="1"/>
-							<button name="action_create_downpayment" 
-									string="Create DP" 
-									type="object"
-									class="btn-sm btn-secondary"
-									invisible="state != 'due'"/>
-							<button name="action_view_downpayments" 
-									string="View DPs" 
-									type="object"
-									class="btn-sm btn-link"
-									invisible="downpayment_count == 0"/>
-						</tree>
-					</field>
-                </page>
-                
-                <!-- Down Payments Tab -->
-                <page string="Down Payments" name="downpayments">
+                    <separator string="Downpayment Requests"/>
                     <field name="downpayment_request_ids" readonly="1">
                         <tree decoration-success="state == 'paid'"
-                              decoration-warning="state == 'overdue'"
-                              decoration-danger="state == 'cancelled'"
-                              decoration-info="state in ['draft', 'sent']">
+                              decoration-warning="state == 'sent'"
+                              decoration-danger="state == 'overdue'"
+                              decoration-info="state == 'draft'">
                             <field name="name"/>
                             <field name="request_type"/>
                             <field name="partner_id"/>
                             <field name="percentage" widget="percentage"/>
                             <field name="amount_requested" sum="Total Requested" widget="monetary"/>
-                            <field name="amount_received" sum="Total Received" widget="monetary"/>
-                            <field name="amount_due" sum="Total Due" widget="monetary"/>
                             <field name="due_date"/>
                             <field name="milestone_trigger"/>
-                            <field name="days_overdue" invisible="days_overdue == 0"/>
                             <field name="state" widget="badge"/>
-                            <button name="action_send" 
-                                    string="Send" 
-                                    type="object"
-                                    class="btn-sm btn-primary"
-                                    invisible="state != 'draft'"/>
-                            <button name="action_register_payment" 
-                                    string="Register Payment" 
-                                    type="object"
-                                    class="btn-sm btn-success"
-                                    invisible="state not in ['sent', 'partial']"/>
                         </tree>
                     </field>
                 </page>
@@ -254,11 +197,15 @@
                 <!-- Cash Flow Tab -->
                 <page string="Cash Flow" name="cash_flow">
                     <group>
-<!--                         <button name="_generate_cash_flow_projection" 
-                                string="Generate Cash Flow Projection" 
-                                type="object"
-                                class="btn-secondary"
-                                invisible="state == 'cancelled'"/> -->
+                        <field name="cash_flow_projection" readonly="1">
+                            <tree>
+                                <field name="date"/>
+                                <field name="type"/>
+                                <field name="category"/>
+                                <field name="description"/>
+                                <field name="amount" widget="monetary" sum="Total"/>
+                            </tree>
+                        </field>
                     </group>
                 </page>
             </xpath>
@@ -273,53 +220,39 @@
         <field name="arch" type="xml">
             <field name="state" position="after">
                 <field name="confirmation_date" optional="hide"/>
-                <field name="payment_progress" widget="progressbar" optional="show"/>
                 <field name="total_receivable" widget="monetary" optional="hide"/>
                 <field name="total_payable" widget="monetary" optional="hide"/>
+                <field name="gross_margin" widget="monetary" optional="hide"/>
             </field>
         </field>
-		
     </record>
     
-	<!-- Extend Search View with financial filters -->
-	<record id="view_dm_deal_search_financial_inherit" model="ir.ui.view">
-		<field name="name">dm.deal.search.financial.inherit</field>
-		<field name="model">dm.deal</field>
-		<field name="inherit_id" ref="dm_deal.view_dm_deal_search"/>
-		<field name="arch" type="xml">
-			<!-- Add filters after the last filter in the search view -->
-			<xpath expr="//search/filter[last()]" position="after">
-				<separator/>
-				<!-- Remove the filter that uses downpayment_count as it's not searchable -->
-				<!-- <filter name="has_downpayments" string="Has Down Payments" 
-						domain="[('downpayment_count', '&gt;', 0)]"/> -->
-				<!-- Use a different approach - check if downpayment_request_ids exists -->
-				<filter name="has_downpayments" string="Has Down Payments" 
-						domain="[('downpayment_request_ids', '!=', False)]"/>
-				<filter name="overdue_payments" string="Overdue Payments" 
-						domain="[('downpayment_request_ids.state', '=', 'overdue')]"/>
-				<filter name="pending_milestones" string="Pending Milestones" 
-						domain="[('payment_milestone_ids.state', 'in', ['pending', 'due'])]"/>
-				<!-- Remove invoice_count filter as it's also not searchable -->
-				<!-- <filter name="invoiced" string="Invoiced" 
-						domain="[('invoice_count', '&gt;', 0)]"/> -->
-				<!-- Use invoice_ids instead -->
-				<filter name="invoiced" string="Invoiced" 
-						domain="[('invoice_ids', '!=', False)]"/>
-			</xpath>
-			
-			<!-- Add group by filters -->
-			<xpath expr="//search/group/filter[last()]" position="after">
-				<filter name="group_by_confirmation" string="Confirmation Month" 
-						context="{'group_by': 'confirmation_date:month'}"/>
-				<!-- Remove payment_progress grouping as it's not searchable/groupable -->
-				<!-- <filter name="group_by_payment_progress" string="Payment Progress" 
-						context="{'group_by': 'payment_progress:interval(25)'}"/> -->
-			</xpath>
-		</field>
-	</record>    
+    <!-- Extend Search View with financial filters -->
+    <record id="view_dm_deal_search_financial_inherit" model="ir.ui.view">
+        <field name="name">dm.deal.search.financial.inherit</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_search"/>
+        <field name="arch" type="xml">
+            <!-- Add filters after the last filter in the search view -->
+            <xpath expr="//search/filter[last()]" position="after">
+                <separator/>
+                <filter name="has_downpayments" string="Has Down Payments" 
+                        domain="[('downpayment_request_ids', '!=', False)]"/>
+                <filter name="overdue_payments" string="Overdue Payments" 
+                        domain="[('downpayment_request_ids.state', '=', 'overdue')]"/>
+                <filter name="invoiced" string="Invoiced" 
+                        domain="[('invoice_ids', '!=', False)]"/>
+            </xpath>
+            
+            <!-- Add group by filters -->
+            <xpath expr="//search/group/filter[last()]" position="after">
+                <filter name="group_by_confirmation" string="Confirmation Month" 
+                        context="{'group_by': 'confirmation_date:month'}"/>
+            </xpath>
+        </field>
+    </record>    
 
-    <!-- Add the action HERE, after the views but before </odoo> -->
+    <!-- Financial Dashboard Action -->
     <record id="action_dm_deal_financial_dashboard" model="ir.actions.act_window">
         <field name="name">Deal Financial Dashboard</field>
         <field name="res_model">dm.deal</field>
