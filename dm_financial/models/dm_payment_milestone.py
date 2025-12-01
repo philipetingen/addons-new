@@ -223,9 +223,9 @@ class DmPaymentMilestone(models.Model):
             elif milestone.percentage and milestone.deal_id:
                 # Get base amount depending on payment type
                 if milestone.payment_type == 'customer':
-                    base_amount = milestone.deal_id.total_sale_amount or 0
+                    base_amount = milestone.deal_id.amount_untaxed_sale or 0.0
                 else:
-                    base_amount = milestone.deal_id.total_purchase_amount or 0
+                    base_amount = milestone.deal_id.amount_untaxed_purchase or 0.0
                 
                 milestone.amount = base_amount * (milestone.percentage / 100.0)
             else:

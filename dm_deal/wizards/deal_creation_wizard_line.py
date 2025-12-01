@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -89,10 +86,31 @@ class DealCreationWizardLine(models.TransientModel):
     # Product info (for display)
     supplier_id = fields.Many2one(
         'res.partner',
-        related='product_id.seller_ids.partner_id',
         string='Supplier',
-        store=False
+        compute='_compute_supplier_id',
+        store=False,
+        help='Primary supplier for this product'
     )
+
+    @api.depends('product_id')
+    def _compute_supplier_id(self):
+        """Get primary supplier from product's vendor list"""
+        for line in self:
+            supplier = False
+            if line.product_id:
+                # Get first supplier from product.supplierinfo (ordered by sequence)
+                supplier_info = self.env['product.supplierinfo'].search([
+                    '|',
+                    ('product_id', '=', line.product_id.id),
+                    '&',
+                    ('product_id', '=', False),
+                    ('product_tmpl_id', '=', line.product_id.product_tmpl_id.id),
+                ], limit=1, order='sequence, id')
+                
+                if supplier_info:
+                    supplier = supplier_info.partner_id
+            
+            line.supplier_id = supplier
     
     product_moq = fields.Float(
         string='MOQ',
@@ -136,11 +154,9 @@ class DealCreationWizardLine(models.TransientModel):
         """Calculate weight when entering by packages"""
         if self.entry_mode == 'pkg' and self.quantity_packaging and self.quantity_packaging > 0:
             if self.packaging_id and self.product_id and self.product_id.weight:
-                # Calculate package weight
                 package_weight = self.packaging_id.qty * self.product_id.weight
                 if package_weight > 0:
                     self.weight = self.quantity_packaging * package_weight
-                    _logger.info(f"Calculated weight: {self.weight} kg from {self.quantity_packaging} packages")
     
     @api.depends('quantity_packaging', 'price_packaging_sale')
     def _compute_amount_sale(self):
@@ -159,104 +175,122 @@ class DealCreationWizardLine(models.TransientModel):
             else:
                 line.moq_status = 'below'
     
-    # ===== ONCHANGE METHODS =====
+    # ===== ONCHANGE METHODS (Now delegate to model) =====
     
     @api.onchange('customer_product_code')
     def _onchange_customer_product_code(self):
-        """Look up product by customer code - REUSED FROM dm_deal_line"""
+        """Look up product by customer code - delegates to model"""
         if not self.customer_product_code or not self.wizard_id.customer_id:
             return
         
-        try:
-            # Search in dm.customer.pricelist (same as deal line)
-            pricelist_item = self.env['dm.customer.pricelist'].search([
-                ('partner_id', '=', self.wizard_id.customer_id.id),
-                ('customer_product_code', '=', self.customer_product_code),
-                ('active', '=', True),
-                '|',
-                ('date_start', '<=', fields.Date.context_today(self)),
-                ('date_start', '=', False),
-                '|',
-                ('date_end', '>=', fields.Date.context_today(self)),
-                ('date_end', '=', False),
-            ], limit=1)
-            
-            if pricelist_item:
-                # Auto-populate product and packaging
-                self.product_id = pricelist_item.product_id
-                self.packaging_id = pricelist_item.product_packaging_id
-                self.price_packaging_sale = pricelist_item.package_price
-                self.product_moq = pricelist_item.moq_packages
-                
-                _logger.info(
-                    f"Found product by customer code '{self.customer_product_code}': "
-                    f"{pricelist_item.product_id.name}"
-                )
-            else:
-                return {
-                    'warning': {
-                        'title': _('Code Not Found'),
-                        'message': _(
-                            'Customer code "%s" not found for %s.'
-                        ) % (self.customer_product_code, self.wizard_id.customer_id.name)
-                    }
-                }
+        # Use model method
+        result = self.env['dm.deal.line'].lookup_product_by_customer_code(
+            self.wizard_id.customer_id.id,
+            self.customer_product_code
+        )
         
-        except Exception as e:
-            _logger.error(f"Error looking up customer product code: {str(e)}")
+        if result:
+            self.product_id = result['product_id']
+            self.packaging_id = result['product_packaging_id']
+            self.price_packaging_sale = result['package_price']
+            self.product_moq = result.get('moq_packages', 0)
+            
+            _logger.info(
+                f"Found product by customer code '{self.customer_product_code}': "
+                f"Product ID {result['product_id']}"
+            )
+        else:
+            return {
+                'warning': {
+                    'title': _('Code Not Found'),
+                    'message': _(
+                        'Customer code "%s" not found for %s.'
+                    ) % (self.customer_product_code, self.wizard_id.customer_id.name)
+                }
+            }
 
     @api.onchange('product_id', 'packaging_id')
     def _onchange_product_load_data(self):
-        """Load pricing when product/packaging selected - REUSED FROM dm_deal_line"""
+        """Load pricing when product/packaging selected - delegates to model"""
         if not self.product_id or not self.packaging_id or not self.wizard_id.customer_id:
             return
         
-        # Fetch customer price using same method as deal line
-        self._fetch_customer_price()
-
-    def _fetch_customer_price(self):
-        """
-        Fetch customer price from dm.customer.pricelist.
-        COPIED FROM dm_deal_line for consistency.
-        """
-        if not self.product_id or not self.packaging_id or not self.wizard_id.customer_id:
-            return
+        # Use model method
+        result = self.env['dm.deal.line'].fetch_customer_price_for_wizard(
+            self.wizard_id.customer_id.id,
+            self.product_id.id,
+            self.packaging_id.id
+        )
         
-        try:
-            # Search dm.customer.pricelist
-            pricelist_item = self.env['dm.customer.pricelist'].search([
-                ('partner_id', '=', self.wizard_id.customer_id.id),
-                ('product_id', '=', self.product_id.id),
-                ('product_packaging_id', '=', self.packaging_id.id),
-                ('active', '=', True),
-                '|',
-                ('date_start', '<=', fields.Date.context_today(self)),
-                ('date_start', '=', False),
-                '|',
-                ('date_end', '>=', fields.Date.context_today(self)),
-                ('date_end', '=', False),
-            ], limit=1)
+        if result:
+            self.price_packaging_sale = result['package_price']
+            self.product_moq = result.get('moq_packages', 0)
             
-            if pricelist_item:
-                self.price_packaging_sale = pricelist_item.package_price
-                self.product_moq = pricelist_item.moq_packages
-                
-                # Auto-fill customer code if not already set
-                if pricelist_item.customer_product_code and not self.customer_product_code:
-                    self.customer_product_code = pricelist_item.customer_product_code
-                
-                _logger.info(
-                    f"Fetched customer price: {self.price_packaging_sale} "
-                    f"for {self.product_id.name} ({self.packaging_id.name})"
-                )
-            else:
-                _logger.warning(
-                    f"No customer price found for {self.wizard_id.customer_id.name} / "
-                    f"{self.product_id.name} / {self.packaging_id.name}"
-                )
+            if result.get('customer_product_code') and not self.customer_product_code:
+                self.customer_product_code = result['customer_product_code']
+            
+            _logger.info(
+                f"Fetched customer price: {self.price_packaging_sale} "
+                f"for product {self.product_id.id} / packaging {self.packaging_id.id}"
+            )
+        else:
+            _logger.warning(
+                f"No customer price found for customer {self.wizard_id.customer_id.id} / "
+                f"product {self.product_id.id} / packaging {self.packaging_id.id}"
+            )
+
+    @api.onchange('product_id')
+    def _onchange_product_check_supplier(self):
+        """Warn if product has different supplier than existing lines"""
+        if not self.product_id or not self.wizard_id:
+            return
         
-        except Exception as e:
-            _logger.error(f"Error fetching customer price: {str(e)}", exc_info=True)
+        # Get this product's supplier
+        supplier_info = self.env['product.supplierinfo'].search([
+            '|',
+            ('product_id', '=', self.product_id.id),
+            '&',
+            ('product_id', '=', False),
+            ('product_tmpl_id', '=', self.product_id.product_tmpl_id.id),
+        ], limit=1, order='sequence, id')
+        
+        if not supplier_info:
+            return  # No supplier - will be caught by other validation
+        
+        new_supplier = supplier_info.partner_id
+        
+        # Check existing lines for different supplier
+        for line in self.wizard_id.line_ids:
+            if line.id == self.id or not line.product_id:
+                continue
+            
+            # Get existing line's supplier
+            existing_supplier_info = self.env['product.supplierinfo'].search([
+                '|',
+                ('product_id', '=', line.product_id.id),
+                '&',
+                ('product_id', '=', False),
+                ('product_tmpl_id', '=', line.product_id.product_tmpl_id.id),
+            ], limit=1, order='sequence, id')
+            
+            if existing_supplier_info and existing_supplier_info.partner_id != new_supplier:
+                return {
+                    'warning': {
+                        'title': _('Multiple Suppliers Not Allowed'),
+                        'message': _(
+                            'Product "%s" has supplier "%s", but other lines use supplier "%s".\n\n'
+                            'A deal can only have products from a single supplier.\n\n'
+                            'Please either:\n'
+                            '• Select a different product from "%s"\n'
+                            '• Create a separate deal for this product'
+                        ) % (
+                            self.product_id.name,
+                            new_supplier.name,
+                            existing_supplier_info.partner_id.name,
+                            existing_supplier_info.partner_id.name
+                        )
+                    }
+                }
     
     @api.onchange('weight', 'packaging_id', 'product_id')
     def _onchange_weight(self):
@@ -305,7 +339,6 @@ class DealCreationWizardLine(models.TransientModel):
             
             # Check if divisible evenly (tolerance for float precision)
             if abs(calculated_packages - round(calculated_packages)) > 0.001:
-                # Calculate suggestions
                 packages_floor = int(calculated_packages)
                 packages_ceil = packages_floor + 1
                 weight_floor = packages_floor * package_weight
@@ -319,8 +352,8 @@ class DealCreationWizardLine(models.TransientModel):
                             'Each package weighs %.3f kg.\n'
                             'Result would be %.3f packages (fractional not allowed).\n\n'
                             'Suggestions:\n'
-                            'â€¢ %d packages = %.3f kg\n'
-                            'â€¢ %d packages = %.3f kg\n\n'
+                            '• %d packages = %.3f kg\n'
+                            '• %d packages = %.3f kg\n\n'
                             'Please adjust weight or switch to package entry mode.'
                         ) % (
                             self.weight,
@@ -332,7 +365,7 @@ class DealCreationWizardLine(models.TransientModel):
                     }
                 }
             
-            # Set package quantity (rounded to handle float precision)
+            # Set package quantity
             self.quantity_packaging = round(calculated_packages)
     
     # ===== CONSTRAINTS =====

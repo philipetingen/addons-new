@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 from datetime import timedelta
@@ -10,6 +8,12 @@ _logger = logging.getLogger(__name__)
 
 
 class DealCreationWizard(models.TransientModel):
+    """
+    Deal Creation Wizard
+    
+    Phase 0: Creates deal with subdeal, lines go to subdeal.
+    Multi-step wizard with validation.
+    """
     _name = 'dm.deal.creation.wizard'
     _description = 'Deal Creation Wizard'
     
@@ -20,7 +24,9 @@ class DealCreationWizard(models.TransientModel):
         ('step3_review', 'Step 3: Review & Create')
     ], default='step1_header', required=True)
     
-    # ===== STEP 1: DEAL HEADER =====
+    # =========================================================================
+    # STEP 1: DEAL HEADER
+    # =========================================================================
     
     # Required fields
     customer_id = fields.Many2one(
@@ -74,7 +80,9 @@ class DealCreationWizard(models.TransientModel):
         string='Currency',
     )
  
-    # ===== STEP 2: PRODUCT LINES =====
+    # =========================================================================
+    # STEP 2: PRODUCT LINES
+    # =========================================================================
     
     line_ids = fields.One2many(
         'dm.deal.creation.wizard.line',
@@ -87,7 +95,9 @@ class DealCreationWizard(models.TransientModel):
         string='Line Count'
     )
     
-    # ===== STEP 3: REVIEW =====
+    # =========================================================================
+    # STEP 3: REVIEW
+    # =========================================================================
     
     total_amount = fields.Monetary(
         compute='_compute_totals',
@@ -112,7 +122,9 @@ class DealCreationWizard(models.TransientModel):
         string='Has Warnings'
     )
     
-    # ===== COMPUTED FIELDS =====
+    # =========================================================================
+    # COMPUTED FIELDS
+    # =========================================================================
     
     @api.depends('line_ids')
     def _compute_line_count(self):
@@ -140,7 +152,9 @@ class DealCreationWizard(models.TransientModel):
             if self.customer_id and self.customer_id.property_product_pricelist:
                 self.currency_id = self.customer_id.property_product_pricelist.currency_id           
     
-    # ===== ONCHANGE METHODS =====
+    # =========================================================================
+    # ONCHANGE METHODS
+    # =========================================================================
     
     @api.onchange('customer_id')
     def _onchange_customer_load_template(self):
@@ -191,21 +205,19 @@ class DealCreationWizard(models.TransientModel):
                 }
             }
     
-    # ===== NAVIGATION ACTIONS =====
+    # =========================================================================
+    # NAVIGATION ACTIONS
+    # =========================================================================
     
     def action_next_step(self):
         """Move to next wizard step"""
         self.ensure_one()
         
         if self.current_step == 'step1_header':
-            # Validate header before moving to products
-            self._validate_header()
+            self._validate_step1()
             self.current_step = 'step2_products'
-            
         elif self.current_step == 'step2_products':
-            # Validate at least one line exists
-            if not self.line_ids:
-                raise UserError(_('Please add at least one product line before proceeding.'))
+            self._validate_step2()
             self.current_step = 'step3_review'
         
         return self._reopen_wizard()
@@ -214,35 +226,19 @@ class DealCreationWizard(models.TransientModel):
         """Move to previous wizard step"""
         self.ensure_one()
         
-        if self.current_step == 'step3_review':
-            self.current_step = 'step2_products'
-        elif self.current_step == 'step2_products':
+        if self.current_step == 'step2_products':
             self.current_step = 'step1_header'
+        elif self.current_step == 'step3_review':
+            self.current_step = 'step2_products'
         
         return self._reopen_wizard()
     
-    def action_add_product_line(self):
-        """Open wizard to add new product line"""
-        self.ensure_one()
-        
-        return {
-            'name': _('Add Product Line'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'dm.deal.line.add.wizard',
-            'view_mode': 'form',
-            'target': 'new',
-            'context': {
-                'default_parent_wizard_id': self.id,
-                'default_customer_id': self.customer_id.id,
-            }
-        }
+    # =========================================================================
+    # VALIDATION
+    # =========================================================================
     
-    # ===== VALIDATION =====
-    
-    def _validate_header(self):
-        """Validate step 1 data"""
-        self.ensure_one()
-        
+    def _validate_step1(self):
+        """Validate Step 1 (Deal Header)"""
         if not self.customer_id:
             raise ValidationError(_('Customer is required.'))
         
@@ -264,15 +260,34 @@ class DealCreationWizard(models.TransientModel):
         if not self.po_date:
             raise ValidationError(_('PO Date is required.'))
     
-    # ===== CREATE DEAL =====
+    def _validate_step2(self):
+        """Validate Step 2 (Product Lines)"""
+        if not self.line_ids:
+            raise ValidationError(_('At least one product line is required.'))
+        
+        for idx, line in enumerate(self.line_ids, 1):
+            if not line.product_id:
+                raise ValidationError(_('Line %s: Product is required.') % idx)
+            if not line.packaging_id:
+                raise ValidationError(_('Line %s: Packaging is required.') % idx)
+            if line.quantity_packaging <= 0:
+                raise ValidationError(_('Line %s: Quantity must be positive.') % idx)
+            if line.price_packaging_sale <= 0:
+                raise ValidationError(_('Line %s: Price must be positive.') % idx)
+    
+    # =========================================================================
+    # CREATE DEAL
+    # =========================================================================
     
     def action_create_deal(self):
         """
         Create the deal from wizard data with full automation.
         
+        Phase 0: Creates deal + subdeal, lines go to subdeal.
+        
         This method:
         1. Pre-validates vendor pricing exists
-        2. Creates deal + lines
+        2. Creates deal + subdeal + lines
         3. Triggers supplier determination (sets line.supplier_id + purchase price)
         4. Triggers template application (handles selection if multiple)
         5. Creates SO/PO via validation
@@ -301,6 +316,50 @@ class DealCreationWizard(models.TransientModel):
         
         _logger.info("   ✅ All products have vendor pricing")
         
+        # STEP 0b: SINGLE SUPPLIER VALIDATION
+        _logger.info("🔍 Pre-validation: Checking single supplier constraint")
+        
+        suppliers = set()
+        supplier_products = {}  # {supplier_id: [product_names]}
+        
+        for wizard_line in self.line_ids:
+            supplier_info = self.env['product.supplierinfo'].search([
+                '|',
+                ('product_id', '=', wizard_line.product_id.id),
+                '&',
+                ('product_id', '=', False),
+                ('product_tmpl_id', '=', wizard_line.product_id.product_tmpl_id.id),
+            ], limit=1, order='sequence, id')
+            
+            if supplier_info:
+                supplier = supplier_info.partner_id
+                suppliers.add(supplier.id)
+                
+                if supplier.id not in supplier_products:
+                    supplier_products[supplier.id] = {
+                        'name': supplier.name,
+                        'products': []
+                    }
+                supplier_products[supplier.id]['products'].append(wizard_line.product_id.name)
+        
+        if len(suppliers) > 1:
+            # Build detailed error message
+            details = []
+            for supplier_id, info in supplier_products.items():
+                products_list = ', '.join(info['products'][:3])
+                if len(info['products']) > 3:
+                    products_list += f' (+{len(info["products"]) - 3} more)'
+                details.append(f"• {info['name']}: {products_list}")
+            
+            raise UserError(_(
+                'Cannot create deal with multiple suppliers!\n\n'
+                'A deal must have all products from a single supplier.\n\n'
+                'Suppliers found:\n%s\n\n'
+                'Please create separate deals for each supplier.'
+            ) % '\n'.join(details))
+        
+        _logger.info("   ✅ Single supplier confirmed")
+        
         # Final validation
         if not self.line_ids:
             raise UserError(_('Cannot create deal without product lines.'))
@@ -316,48 +375,55 @@ class DealCreationWizard(models.TransientModel):
             deal = self._create_deal_record()
             _logger.info(f"   ✅ Deal created: {deal.name}")
             
-            # STEP 2: Create deal lines
-            _logger.info("📦 Step 2: Creating deal lines")
-            self._create_deal_lines(deal)
+            # STEP 2: Create subdeal (Phase 0)
+            _logger.info("📦 Step 2: Creating subdeal")
+            subdeal = self._create_subdeal(deal)
+            _logger.info(f"   ✅ Subdeal created: {subdeal.id}")
+            
+            # STEP 3: Create deal lines on subdeal
+            _logger.info("📦 Step 3: Creating deal lines")
+            self._create_deal_lines(deal, subdeal)
             _logger.info(f"   ✅ Created {len(deal.line_ids)} lines")
             
-            # STEP 3: Trigger supplier determination for each line
+            # STEP 4: Trigger supplier determination for each line
             # This is what normally happens in onchange but doesn't fire during create()
-            _logger.info("🏭 Step 3: Determining suppliers and purchase prices")
+            _logger.info("🏭 Step 4: Determining suppliers and purchase prices")
             for idx, line in enumerate(deal.line_ids, 1):
                 _logger.info(f"   Processing line {idx}: {line.product_id.name}")
                 
                 # This method sets line.supplier_id and price_packaging_purchase
-                line._fetch_supplier_price()
+                if hasattr(line, '_fetch_supplier_price'):
+                    line._fetch_supplier_price()
                 
                 _logger.info(f"   ✅ Line {idx} supplier: {line.supplier_id.name if line.supplier_id else 'NOT SET'}")
                 _logger.info(f"   ✅ Line {idx} purchase price: ${line.price_packaging_purchase:.6f}")
             
-            # STEP 4: Set deal supplier from first line
+            # STEP 5: Set deal supplier from first line
             if deal.line_ids and deal.line_ids[0].supplier_id:
                 deal.supplier_id = deal.line_ids[0].supplier_id
-                _logger.info(f"🏢 Step 4: Deal supplier set to: {deal.supplier_id.name}")
+                _logger.info(f"🏢 Step 5: Deal supplier set to: {deal.supplier_id.name}")
             else:
                 _logger.warning("⚠️ No supplier determined - may need manual selection")
             
-            # STEP 5: Apply template
+            # STEP 6: Apply template
             # This may open template selection wizard if multiple matches
-            _logger.info("📋 Step 5: Applying deal template")
-            template_result = deal._apply_template_from_lines()
-            
-            if template_result and isinstance(template_result, dict) and template_result.get('type') == 'ir.actions.act_window':
-                # Template selection wizard opened
-                _logger.info("   📋 Multiple templates - selection wizard opened")
-                # Return the wizard action - user will select template, then deal opens
-                return template_result
+            _logger.info("📋 Step 6: Applying deal template")
+            if hasattr(deal, '_apply_template_from_lines'):
+                template_result = deal._apply_template_from_lines()
+                
+                if template_result and isinstance(template_result, dict) and template_result.get('type') == 'ir.actions.act_window':
+                    # Template selection wizard opened
+                    _logger.info("   📋 Multiple templates - selection wizard opened")
+                    # Return the wizard action - user will select template, then deal opens
+                    return template_result
             
             if deal.template_id:
                 _logger.info(f"   ✅ Template applied: {deal.template_id.name}")
             else:
                 _logger.warning("   ⚠️ No template applied")
             
-            # STEP 6: Validate deal (creates SO/PO)
-            _logger.info("✅ Step 6: Validating deal (creates SO/PO)")
+            # STEP 7: Validate deal (creates SO/PO)
+            _logger.info("✅ Step 7: Validating deal (creates SO/PO)")
             deal.action_validate()
             
             _logger.info(f"🎉 Deal {deal.name} created successfully!")
@@ -383,23 +449,46 @@ class DealCreationWizard(models.TransientModel):
     
     def _create_deal_record(self):
         """Create the dm.deal record"""
+        # CRITICAL: Ensure currency is set BEFORE creating deal
+        if not self.currency_id:
+            if self.customer_id and self.customer_id.property_product_pricelist:
+                self.currency_id = self.customer_id.property_product_pricelist.currency_id
+            else:
+                self.currency_id = self.env.company.currency_id
+        
         deal_vals = {
             'customer_id': self.customer_id.id,
             'customer_po_number': self.customer_po_number,
             'po_date': self.po_date,
             'rts_requested': self.rts_requested,
             'eta_requested': self.eta_requested,
+            'currency_id': self.currency_id.id,
         }
         
         return self.env['dm.deal'].create(deal_vals)
     
-    def _create_deal_lines(self, deal):
-        """Create all deal lines"""
+    def _create_subdeal(self, deal):
+        """Create the primary subdeal (Phase 0)"""
+        subdeal_vals = {
+            'deal_id': deal.id,
+            'name': 'Shipment',
+            'sequence': 10,
+            # Copy milestone dates from wizard to subdeal
+            'rts_requested': self.rts_requested,
+            'rts_current': self.rts_requested,
+            'eta_requested': self.eta_requested,
+            'eta_current': self.eta_requested,
+        }
+        
+        return self.env['dm.deal.subdeal'].create(subdeal_vals)
+    
+    def _create_deal_lines(self, deal, subdeal):
+        """Create all deal lines on subdeal"""
         for wizard_line in self.line_ids:
             line_vals = {
-                'deal_id': deal.id,
+                'subdeal_id': subdeal.id,  # Phase 0: Lines go to subdeal
                 'product_id': wizard_line.product_id.id,
-                'product_packaging_id': wizard_line.packaging_id.id,  # Different field name
+                'product_packaging_id': wizard_line.packaging_id.id,
                 'entry_mode': wizard_line.entry_mode,
                 'quantity_packaging': wizard_line.quantity_packaging,
                 'weight': wizard_line.weight,
@@ -409,7 +498,9 @@ class DealCreationWizard(models.TransientModel):
             
             self.env['dm.deal.line'].create(line_vals)
     
-    # ===== HELPER METHODS =====
+    # =========================================================================
+    # HELPER METHODS
+    # =========================================================================
     
     def _reopen_wizard(self):
         """Reopen wizard at current step with correct view"""
@@ -434,5 +525,5 @@ class DealCreationWizard(models.TransientModel):
             'view_mode': 'form',
             'view_id': view_id,
             'target': 'new',
-            'context': {'dialog_size': 'extra-large'},  # â† ADD THIS
+            'context': {'dialog_size': 'extra-large'},
         }

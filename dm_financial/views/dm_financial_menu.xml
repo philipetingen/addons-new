@@ -30,20 +30,32 @@
     <menuitem id="menu_dm_downpayment_all" 
               name="All Downpayments" 
               parent="menu_dm_downpayments"
-              action="action_dm_downpayment_request"
+              action="dm_downpayment_request_action"
               sequence="10"/>
     
     <menuitem id="menu_dm_downpayment_customer" 
               name="Customer Downpayments" 
               parent="menu_dm_downpayments"
-              action="action_dm_downpayment_request_customer"
+              action="dm_downpayment_request_action_customer"
               sequence="20"/>
     
     <menuitem id="menu_dm_downpayment_supplier" 
-              name="Supplier Downpayments" 
+              name="Vendor Downpayments" 
               parent="menu_dm_downpayments"
-              action="action_dm_downpayment_request_supplier"
+              action="dm_downpayment_request_action_vendor"
               sequence="30"/>
+    
+    <menuitem id="menu_dm_downpayment_unallocated" 
+              name="Pending Allocation" 
+              parent="menu_dm_downpayments"
+              action="dm_downpayment_request_action_unallocated"
+              sequence="40"/>
+    
+    <menuitem id="menu_dm_payments_with_dp" 
+              name="Payments with DPs" 
+              parent="menu_dm_downpayments"
+              action="action_account_payment_with_dp"
+              sequence="50"/>
     
     <!-- Invoicing -->
     <menuitem id="menu_dm_invoicing" 
@@ -57,7 +69,7 @@
               action="action_dm_invoice_split_config"
               sequence="10"/>
     
-    <!-- Cash Flow -->
+    <!-- Cash Flow - DISABLED Phase 1
     <menuitem id="menu_dm_cash_flow" 
               name="Cash Flow" 
               parent="menu_dm_financial_operations"
@@ -68,6 +80,7 @@
               parent="menu_dm_cash_flow"
               action="action_dm_cash_flow"
               sequence="10"/>
+    -->
     
     <!-- Reports Section -->
     <menuitem id="menu_dm_financial_reports" 
@@ -76,11 +89,13 @@
               sequence="20"
               groups="group_dm_financial_manager"/>
     
+    <!-- DISABLED Phase 1 - No dashboard action defined yet
     <menuitem id="menu_dm_deal_financial_dashboard" 
               name="Deal Financial Dashboard" 
               parent="menu_dm_financial_reports"
               action="action_dm_deal_financial_dashboard"
               sequence="10"/>
+    -->
     
     <!-- Configuration Section -->
     <menuitem id="menu_dm_financial_config" 
@@ -117,7 +132,7 @@
     <menuitem id="menu_dm_downpayments_in_accounting" 
               name="Downpayments" 
               parent="menu_dm_financial_in_accounting"
-              action="action_dm_downpayment_request"
+              action="dm_downpayment_request_action"
               sequence="10"/>
     
     <menuitem id="menu_dm_invoice_split_in_accounting" 
@@ -126,10 +141,12 @@
               action="action_dm_invoice_split_config"
               sequence="20"/>
     
+    <!-- DISABLED Phase 1
     <menuitem id="menu_dm_cash_flow_in_accounting" 
               name="Cash Flow" 
               parent="menu_dm_financial_in_accounting"
               action="action_dm_cash_flow"
               sequence="30"/>
+    -->
     
 </odoo>

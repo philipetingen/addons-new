@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Root Menu -->
+    <menuitem id="menu_dm_shipment_root"
+              name="Shipment"
+              sequence="45"
+              web_icon="dm_shipment,static/description/icon.png"/>
+    
+    <!-- Shipments Submenu -->
+    <menuitem id="menu_dm_shipment_shipments"
+              name="Shipments"
+              parent="menu_dm_shipment_root"
+              sequence="10"/>
+    
+    <!-- All Shipments -->
+    <menuitem id="menu_dm_shipment_all"
+              name="All Shipments"
+              parent="menu_dm_shipment_shipments"
+              action="action_dm_shipment_all"
+              sequence="10"/>
+    
+    <!-- Unallocated Deals -->
+    <menuitem id="menu_dm_deal_unallocated"
+              name="Unallocated Deals"
+              parent="menu_dm_shipment_shipments"
+              action="action_dm_deal_unallocated"
+              sequence="20"/>
+    
+</odoo>

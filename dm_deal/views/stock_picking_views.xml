@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Stock Move Tree: Package-native columns -->
+    <record id="view_stock_move_tree_dm_fields" model="ir.ui.view">
+        <field name="name">stock.move.tree.dm.fields</field>
+        <field name="model">stock.move</field>
+        <field name="inherit_id" ref="stock.view_move_tree"/>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_uom_qty']" position="after">
+                <field name="packaging_qty_dm" string="Pkg Qty (DM)" 
+                       readonly="1"
+                       optional="hide"/>
+                <field name="packaging_price_unit" string="Pkg Price" 
+                       readonly="1"
+                       optional="hide"/>
+                <field name="is_dm_move" column_invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+    
+    <!-- Stock Move Form: Package-native fields -->
+    <record id="view_stock_move_form_dm_fields" model="ir.ui.view">
+        <field name="name">stock.move.form.dm.fields</field>
+        <field name="model">stock.move</field>
+        <field name="inherit_id" ref="stock.view_move_form"/>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='product_uom_qty']" position="after">
+                <field name="dm_deal_line_id" readonly="1" 
+                       invisible="not dm_deal_line_id"/>
+                <field name="packaging_qty_dm" string="Pkg Qty (DM)" 
+                       readonly="1"
+                       invisible="not is_dm_move"/>
+                <field name="packaging_price_unit" string="Pkg Price" 
+                       readonly="1"
+                       invisible="not is_dm_move"/>
+                <field name="is_dm_move" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

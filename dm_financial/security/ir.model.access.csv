@@ -1,19 +1,14 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dm_payment_milestone_user,dm.payment.milestone user,model_dm_payment_milestone,group_dm_financial_user,1,0,0,0
-access_dm_payment_milestone_manager,dm.payment.milestone manager,model_dm_payment_milestone,group_dm_financial_manager,1,0,0,0
-access_dm_payment_milestone_admin,dm.payment.milestone admin,model_dm_payment_milestone,group_dm_financial_admin,1,1,1,1
-access_dm_downpayment_request_user,dm.downpayment.request user,model_dm_downpayment_request,group_dm_financial_user,1,0,1,0
-access_dm_downpayment_request_manager,dm.downpayment.request manager,model_dm_downpayment_request,group_dm_financial_manager,1,1,1,1
-access_dm_downpayment_request_admin,dm.downpayment.request admin,model_dm_downpayment_request,group_dm_financial_admin,1,1,1,1
-access_dm_invoice_split_config_user,dm.invoice.split.config user,model_dm_invoice_split_config,group_dm_financial_user,1,0,0,0
-access_dm_invoice_split_config_manager,dm.invoice.split.config manager,model_dm_invoice_split_config,group_dm_financial_manager,1,1,1,0
-access_dm_invoice_split_config_admin,dm.invoice.split.config admin,model_dm_invoice_split_config,group_dm_financial_admin,1,1,1,1
-access_dm_cash_flow_user,dm.cash.flow user,model_dm_cash_flow,group_dm_financial_user,1,0,0,0
-access_dm_cash_flow_manager,dm.cash.flow manager,model_dm_cash_flow,group_dm_financial_manager,1,1,1,0
-access_dm_cash_flow_admin,dm.cash.flow admin,model_dm_cash_flow,group_dm_financial_admin,1,1,1,1
-access_dm_invoice_generation_wizard_user,dm.invoice.generation.wizard user,model_dm_invoice_generation_wizard,group_dm_financial_user,1,1,1,1
-access_dm_invoice_generation_wizard_manager,dm.invoice.generation.wizard manager,model_dm_invoice_generation_wizard,group_dm_financial_manager,1,1,1,1
-access_dm_invoice_generation_wizard_line_user,dm.invoice.generation.wizard.line user,model_dm_invoice_generation_wizard_line,group_dm_financial_user,1,1,1,1
-access_dm_invoice_generation_wizard_line_manager,dm.invoice.generation.wizard.line manager,model_dm_invoice_generation_wizard_line,group_dm_financial_manager,1,1,1,1
-access_dm_cash_flow_projection_wizard_user,dm.cash.flow.projection.wizard user,model_dm_cash_flow_projection_wizard,group_dm_financial_user,1,1,1,1
-access_dm_cash_flow_projection_wizard_manager,dm.cash.flow.projection.wizard manager,model_dm_cash_flow_projection_wizard,group_dm_financial_manager,1,1,1,1
+access_dm_payment_milestone_user,dm.payment.milestone.user,model_dm_payment_milestone,dm_base.group_dm_user,1,1,1,0
+access_dm_payment_milestone_manager,dm.payment.milestone.manager,model_dm_payment_milestone,dm_base.group_dm_manager,1,1,1,1
+access_dm_downpayment_request_user,dm.downpayment.request.user,model_dm_downpayment_request,dm_base.group_dm_user,1,1,1,0
+access_dm_downpayment_request_manager,dm.downpayment.request.manager,model_dm_downpayment_request,dm_base.group_dm_manager,1,1,1,1
+access_dm_invoice_split_config_user,dm.invoice.split.config.user,model_dm_invoice_split_config,dm_base.group_dm_user,1,0,0,0
+access_dm_invoice_split_config_manager,dm.invoice.split.config.manager,model_dm_invoice_split_config,dm_base.group_dm_manager,1,1,1,1
+access_dm_downpayment_request_user,dm.downpayment.request.user,model_dm_downpayment_request,account.group_account_user,1,1,1,0
+access_dm_downpayment_request_manager,dm.downpayment.request.manager,model_dm_downpayment_request,account.group_account_manager,1,1,1,1
+access_dm_downpayment_request_invoice,dm.downpayment.request.invoice,model_dm_downpayment_request,account.group_account_invoice,1,1,1,0
+access_dp_create_payment_wizard_user,dm.dp.create.payment.wizard.user,model_dm_dp_create_payment_wizard,account.group_account_user,1,1,1,1
+access_dp_create_payment_wizard_manager,dm.dp.create.payment.wizard.manager,model_dm_dp_create_payment_wizard,account.group_account_manager,1,1,1,1
+access_dp_assign_wizard_user,dm.dp.assign.wizard.user,model_dm_dp_assign_wizard,account.group_account_user,1,1,1,1
+access_dp_assign_wizard_manager,dm.dp.assign.wizard.manager,model_dm_dp_assign_wizard,account.group_account_manager,1,1,1,1

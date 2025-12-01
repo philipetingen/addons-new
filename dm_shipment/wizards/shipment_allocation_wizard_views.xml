@@ -1,105 +1,133 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ============================================================ -->
-    <!-- Shipment Allocation Wizard Form -->
-    <!-- ============================================================ -->
-    <record id="view_dm_shipment_allocation_wizard_form" model="ir.ui.view">
-        <field name="name">dm.shipment.allocation.wizard.form</field>
-        <field name="model">dm.shipment.allocation.wizard</field>
+    
+    <record id="view_shipment_allocation_wizard_form" model="ir.ui.view">
+        <field name="name">shipment.allocation.wizard.form</field>
+        <field name="model">shipment.allocation.wizard</field>
         <field name="arch" type="xml">
-            <form string="Allocate to Shipment">
-                <sheet>
-                    <group>
-                        <group string="Production Runs to Allocate">
-                            <field name="production_run_ids" widget="many2many_tags" readonly="1"/>
-                        </group>
-                        <group string="Shipment Mode">
-                            <field name="shipment_mode" widget="radio"/>
-                            <field name="shipment_id" 
-                                   invisible="shipment_mode != 'existing'"
-                                   required="shipment_mode == 'existing'"/>
-                        </group>
-                    </group>
+            <form string="Allocate Deals to Shipment">
+                
+                <!-- Step 1: Validation -->
+                <group name="validation" invisible="not has_hard_errors and not has_soft_warnings">
+                    <field name="has_hard_errors" invisible="1"/>
+                    <field name="has_soft_warnings" invisible="1"/>
                     
-                    <separator string="Validation Results"/>
+                    <field name="hard_errors" widget="html" 
+                           colspan="2"
+                           invisible="not has_hard_errors"
+                           nolabel="1"/>
                     
-                    <!-- Validation Summary (HTML display) -->
-                    <group>
-                        <field name="validation_summary" nolabel="1" widget="html"/>
+                    <field name="soft_warnings" widget="html" 
+                           colspan="2"
+                           invisible="not has_soft_warnings"
+                           nolabel="1"/>
+                </group>
+                
+                <separator string="Deals to Allocate"/>
+                <field name="deal_ids" nolabel="1">
+                    <tree>
+                        <field name="name"/>
+                        <field name="customer_po_number"/>
+                        <field name="supplier_id"/>
+                        <field name="loading_port_id"/>
+                        <field name="discharge_port_id"/>
+                        <field name="rts_current"/>
+                        <field name="state" widget="badge"/>
+                    </tree>
+                </field>
+                
+                <!-- Step 2: Route Override -->
+                <separator string="Route"/>
+                <group name="route">
+                    <field name="route_consistent" invisible="1"/>
+                    <field name="use_route_override"/>
+                    <field name="loading_port_id" 
+                           invisible="not use_route_override"
+                           required="use_route_override"/>
+                    <field name="discharge_port_id" 
+                           invisible="not use_route_override"
+                           required="use_route_override"/>
+                </group>
+                
+                <!-- Step 3: Date Strategy -->
+                <separator string="Milestone Date Strategy"/>
+                <group name="dates">
+                    <field name="date_strategy"/>
+                    <group invisible="date_strategy != 'manual'">
+                        <field name="loading_date_manual" 
+                               required="date_strategy == 'manual'"/>
+                        <field name="etd_manual" 
+                               required="date_strategy == 'manual'"/>
+                        <field name="eta_manual" 
+                               required="date_strategy == 'manual'"/>
+                        <field name="delivery_manual"/>
                     </group>
-                    
-                    <!-- Route Override (visible if mixed ports detected) -->
-                    <group string="Route Override" invisible="not has_soft_warnings or shipment_mode != 'new'">
-                        <group>
-                            <field name="use_route_override" widget="boolean_toggle"/>
-                            <field name="loading_port_id" 
-                                   invisible="not use_route_override"
-                                   required="use_route_override"/>
-                            <field name="discharge_port_id"
-                                   invisible="not use_route_override"
-                                   required="use_route_override"/>
-                        </group>
-                        <group>
-                            <div class="alert alert-info" invisible="not use_route_override">
-                                <p><strong>Override Mode:</strong></p>
-                                <p>Selected ports will be used for the new shipment, 
-                                   overriding any mixed ports from deals.</p>
-                            </div>
-                        </group>
-                    </group>
-                    
-                    <!-- Date Strategy (visible if mixed dates detected) -->
-                    <group string="Loading Date Strategy" invisible="not has_soft_warnings or shipment_mode != 'new'">
-                        <group>
-                            <field name="loading_date_strategy" widget="radio"/>
-                            <field name="loading_date_manual"
-                                   invisible="loading_date_strategy != 'manual'"
-                                   required="loading_date_strategy == 'manual'"/>
-                        </group>
-                        <group>
-                            <div class="alert alert-info">
-                                <p><strong>Date Strategy:</strong></p>
-                                <ul>
-                                    <li><strong>Earliest:</strong> Use earliest RTS date from PRs</li>
-                                    <li><strong>Latest:</strong> Use latest RTS date from PRs</li>
-                                    <li><strong>Manual:</strong> Specify loading date manually</li>
-                                </ul>
-                            </div>
-                        </group>
-                    </group>
-                    
-                    <!-- Hidden fields for compute -->
-                    <group invisible="1">
-                        <field name="has_hard_errors"/>
-                        <field name="has_soft_warnings"/>
-                        <field name="supplier_conflict"/>
-                        <field name="vendor_conflict"/>
-                        <field name="already_allocated_conflict"/>
-                        <field name="mixed_loading_ports"/>
-                        <field name="mixed_discharge_ports"/>
-                        <field name="mixed_rts_dates"/>
-                    </group>
-                </sheet>
+                </group>
+                
+                <!-- Proposed dates - EDITABLE (Sprint B key feature) -->
+                <separator string="Proposed Shipment Milestones"/>
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-info-circle"/> Dates are calculated from the strategy above. 
+                    You can adjust them before creating the shipment.
+                </div>
+                <group name="proposed" col="4">
+                    <field name="proposed_loading" readonly="0"/>
+                    <field name="proposed_etd" readonly="0"/>
+                    <field name="proposed_eta" readonly="0"/>
+                    <field name="proposed_delivery" readonly="0"/>
+                </group>
+                
+                <!-- Date impact matrix -->
+                <notebook>
+                    <page string="Milestone Impact by Deal">
+                        <field name="date_strategy_line_ids" nolabel="1">
+                            <tree decoration-success="loading_impact == 'earlier' and etd_impact == 'earlier'"
+                                  decoration-warning="loading_impact == 'later' or etd_impact == 'later'"
+                                  decoration-muted="loading_impact == 'same' and etd_impact == 'same' and eta_impact == 'same' and delivery_impact == 'same'">
+                                <field name="deal_id"/>
+                                <field name="loading_current"/>
+                                <field name="loading_proposed"/>
+                                <field name="loading_impact" 
+                                       widget="badge" 
+                                       decoration-success="loading_impact == 'earlier'"
+                                       decoration-info="loading_impact == 'new'"
+                                       decoration-danger="loading_impact == 'later'"/>
+                                <field name="etd_current"/>
+                                <field name="etd_proposed"/>
+                                <field name="etd_impact" 
+                                       widget="badge"
+                                       decoration-success="etd_impact == 'earlier'"
+                                       decoration-info="etd_impact == 'new'"
+                                       decoration-danger="etd_impact == 'later'"/>
+                                <field name="eta_current"/>
+                                <field name="eta_proposed"/>
+                                <field name="eta_impact" 
+                                       widget="badge"
+                                       decoration-success="eta_impact == 'earlier'"
+                                       decoration-info="eta_impact == 'new'"
+                                       decoration-danger="eta_impact == 'later'"/>
+                                <field name="delivery_current"/>
+                                <field name="delivery_proposed"/>
+                                <field name="delivery_impact" 
+                                       widget="badge"
+                                       decoration-success="delivery_impact == 'earlier'"
+                                       decoration-info="delivery_impact == 'new'"
+                                       decoration-danger="delivery_impact == 'later'"/>
+                            </tree>
+                        </field>
+                    </page>
+                </notebook>
                 
                 <footer>
-                    <button string="Allocate" 
-                            name="action_allocate"
-                            type="object"
+                    <button name="action_create_shipment" 
+                            type="object" 
+                            string="Create Shipment" 
                             class="btn-primary"
                             invisible="has_hard_errors"/>
-                    <button string="Cancel" special="cancel" class="btn-secondary"/>
+                    <button string="Cancel" special="cancel"/>
                 </footer>
             </form>
         </field>
     </record>
-
-    <!-- ============================================================ -->
-    <!-- Wizard Action -->
-    <!-- ============================================================ -->
-    <record id="action_shipment_allocation_wizard" model="ir.actions.act_window">
-        <field name="name">Allocate to Shipment</field>
-        <field name="res_model">dm.shipment.allocation.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
-    </record>
+    
 </odoo>

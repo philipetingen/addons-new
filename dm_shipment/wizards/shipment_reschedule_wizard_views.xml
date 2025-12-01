@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <record id="view_shipment_reschedule_wizard_form" model="ir.ui.view">
+        <field name="name">shipment.reschedule.wizard.form</field>
+        <field name="model">shipment.reschedule.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reschedule Shipment">
+                
+                <group>
+                    <field name="shipment_id" invisible="1"/>
+                    <field name="shipment_name" string="Shipment"/>
+                    <field name="affected_deal_count" string="Deals Affected"/>
+                </group>
+                
+                <separator string="Adjustment Mode"/>
+                <group>
+                    <field name="cascade_mode" widget="radio"/>
+                </group>
+                
+                <separator string="Milestone Dates"/>
+                
+                <!-- Loading -->
+                <group string="Loading">
+                    <group>
+                        <field name="loading_current_old" string="Current" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="loading_current_new" string="New"/>
+                        <field name="loading_shift" string="Shift (days)" readonly="1"/>
+                    </group>
+                </group>
+                
+                <!-- ETD -->
+                <group string="ETD (Departure)">
+                    <group>
+                        <field name="etd_current_old" string="Current" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="etd_current_new" string="New"/>
+                        <field name="etd_shift" string="Shift (days)" readonly="1"/>
+                    </group>
+                </group>
+                
+                <!-- ETA -->
+                <group string="ETA (Arrival)">
+                    <group>
+                        <field name="eta_current_old" string="Current" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="eta_current_new" string="New"/>
+                        <field name="eta_shift" string="Shift (days)" readonly="1"/>
+                    </group>
+                </group>
+                
+                <!-- Delivery -->
+                <group string="Delivery">
+                    <group>
+                        <field name="delivery_current_old" string="Current" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="delivery_current_new" string="New"/>
+                        <field name="delivery_shift" string="Shift (days)" readonly="1"/>
+                    </group>
+                </group>
+                
+                <separator string="Impact Analysis"/>
+                <field name="impact_line_ids" nolabel="1" readonly="1">
+                    <tree decoration-warning="loading_impact == 'later' or etd_impact == 'later'"
+                          decoration-success="loading_impact == 'earlier' or etd_impact == 'earlier'">
+                        <field name="deal_id"/>
+                        <field name="customer_id"/>
+                        <field name="loading_current" string="Loading (Current)"/>
+                        <field name="loading_new" string="Loading (New)"/>
+                        <field name="loading_impact" string="Impact" widget="badge"
+                               decoration-success="loading_impact == 'earlier'"
+                               decoration-danger="loading_impact == 'later'"
+                               decoration-info="loading_impact == 'new'"/>
+                        <field name="etd_current" string="ETD (Current)"/>
+                        <field name="etd_new" string="ETD (New)"/>
+                        <field name="etd_impact" string="Impact" widget="badge"
+                               decoration-success="etd_impact == 'earlier'"
+                               decoration-danger="etd_impact == 'later'"
+                               decoration-info="etd_impact == 'new'"/>
+                        <field name="eta_current" string="ETA (Current)"/>
+                        <field name="eta_new" string="ETA (New)"/>
+                        <field name="eta_impact" string="Impact" widget="badge"
+                               decoration-success="eta_impact == 'earlier'"
+                               decoration-danger="eta_impact == 'later'"
+                               decoration-info="eta_impact == 'new'"/>
+                    </tree>
+                </field>
+                
+                <footer>
+                    <button name="action_apply_changes" 
+                            type="object" 
+                            string="Apply Changes" 
+                            class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+</odoo>

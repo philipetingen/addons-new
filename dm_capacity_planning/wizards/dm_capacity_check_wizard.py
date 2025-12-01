@@ -1,448 +1,388 @@
 # -*- coding: utf-8 -*-
-"""
-DM Capacity Planning - Capacity Check Wizard (Phase 2)
-Visual capacity checking with progress bars and detailed violation reports
-"""
-
-from odoo import models, fields, api, _
-from odoo.exceptions import UserError
-import json
+from odoo import api, fields, models, _
+from odoo.exceptions import ValidationError
+from dateutil.relativedelta import relativedelta
+from datetime import date
+from collections import defaultdict
 import logging
 
 _logger = logging.getLogger(__name__)
 
 
-class CapacityCheckWizard(models.TransientModel):
+class DmCapacityCheckWizard(models.TransientModel):
+    """
+    Capacity Compliance Check Wizard
+    
+    Validates capacity compliance for a vendor and date range.
+    Can be called standalone or integrated into deal workflows.
+    """
     _name = 'dm.capacity.check.wizard'
-    _description = 'Capacity Check Results'
-
-    production_run_id = fields.Many2one(
-        'dm.production.run',
-        string='Production Run',
-        required=True,
-        readonly=True
-    )
+    _description = 'Capacity Check Wizard'
     
-    # Display fields
-    vendor_name = fields.Char(
+    # =========================================================================
+    # INPUT PARAMETERS
+    # =========================================================================
+    
+    vendor_id = fields.Many2one(
+        'res.partner',
         string='Vendor',
-        related='production_run_id.supplier_id.name',
-        readonly=True
+        required=True,
+        domain=[('supplier_rank', '>', 0)],
+        help='Vendor to check capacity for'
     )
     
-    rts_date = fields.Date(
-        string='RTS Date',
-        related='production_run_id.rts_date',
-        readonly=True
+    date_from = fields.Date(
+        string='Check From',
+        required=True,
+        default=fields.Date.today,
+        help='Start date for capacity check'
     )
     
-    month_display = fields.Char(
-        string='Month',
-        compute='_compute_month_display',
-        readonly=True
+    date_to = fields.Date(
+        string='Check To',
+        required=True,
+        default=lambda self: fields.Date.today() + relativedelta(months=3),
+        help='End date for capacity check'
     )
     
-    # Overall status
-    overall_status = fields.Selection([
-        ('ok', 'Within Capacity'),
-        ('warning', 'Near Capacity'),
-        ('over', 'Over Capacity')
-    ], string='Overall Status', compute='_compute_overall_status')
+    # =========================================================================
+    # CHECK RESULTS
+    # =========================================================================
     
-    overall_compliant = fields.Boolean(
-        string='Compliant',
-        compute='_compute_overall_status'
+    state = fields.Selection([
+        ('input', 'Input Parameters'),
+        ('result', 'Check Results'),
+    ], default='input', string='State')
+    
+    check_passed = fields.Boolean(
+        string='Check Passed',
+        readonly=True,
+        help='True if all capacity checks passed'
     )
     
-    # Total capacity metrics
-    this_run_teu = fields.Float(
-        string='This Run TEU',
-        related='production_run_id.run_total_teu',
-        readonly=True
-    )
-    
-    month_total_teu = fields.Float(
-        string='Month Total TEU',
-        related='production_run_id.month_total_teu',
-        readonly=True
-    )
-    
-    month_capacity_teu = fields.Float(
-        string='Month Capacity',
-        related='production_run_id.month_capacity_teu',
-        readonly=True
-    )
-    
-    month_utilization_percent = fields.Float(
-        string='Utilization %',
-        related='production_run_id.month_utilization_percent',
-        readonly=True
-    )
-    
-    month_available_teu = fields.Float(
-        string='Available TEU',
-        related='production_run_id.month_available_teu',
-        readonly=True
-    )
-    
-    # Detailed results (stored as JSON)
-    check_result_json = fields.Text(
-        string='Check Result JSON',
-        help='Detailed check results in JSON format'
-    )
-    
-    # HTML rendering
-    result_html = fields.Html(
+    result_message = fields.Html(
         string='Results',
-        compute='_compute_result_html',
-        sanitize=False
+        readonly=True,
+        help='Detailed capacity check results'
     )
     
-    # Constraint checks
-    constraint_check_ids = fields.One2many(
-        'dm.capacity.check.constraint',
-        'wizard_id',
-        string='Constraint Checks'
+    violation_count = fields.Integer(
+        string='Violations',
+        readonly=True,
+        help='Number of capacity violations found'
     )
-
-    @api.depends('rts_date')
-    def _compute_month_display(self):
-        for wizard in self:
-            if wizard.rts_date:
-                wizard.month_display = wizard.rts_date.strftime('%B %Y')
-            else:
-                wizard.month_display = ''
-
-    @api.depends(
-        'month_total_teu',
-        'month_capacity_teu',
-        'constraint_check_ids.compliant'
+    
+    # =========================================================================
+    # PROGRESS TRACKING
+    # =========================================================================
+    
+    progress_message = fields.Char(
+        string='Progress',
+        readonly=True
     )
-    def _compute_overall_status(self):
-        for wizard in self:
-            # Check if any constraints violated
-            constraint_violation = any(
-                not check.compliant 
-                for check in wizard.constraint_check_ids
-            )
-            
-            # Check total capacity
-            utilization = wizard.month_utilization_percent
-            capacity_ok = utilization <= 100
-            
-            # Determine overall status
-            if capacity_ok and not constraint_violation:
-                wizard.overall_status = 'ok'
-                wizard.overall_compliant = True
-            elif utilization >= 100 or constraint_violation:
-                wizard.overall_status = 'over'
-                wizard.overall_compliant = False
-            else:
-                # Near capacity (80-100%)
-                wizard.overall_status = 'warning'
-                wizard.overall_compliant = True
-
-    @api.depends(
-        'month_total_teu',
-        'month_capacity_teu',
-        'month_utilization_percent',
-        'constraint_check_ids',
-        'overall_status'
+    
+    progress_percent = fields.Float(
+        string='Progress %',
+        readonly=True
     )
-    def _compute_result_html(self):
-        """Generate visual HTML report with progress bars"""
+    
+    # =========================================================================
+    # VALIDATION
+    # =========================================================================
+    
+    @api.constrains('date_from', 'date_to')
+    def _check_date_range(self):
+        """Validate date range"""
         for wizard in self:
-            html_parts = []
-            
-            # Header with overall status
-            status_icon = {
-                'ok': '✅',
-                'warning': '⚠️',
-                'over': '❌'
-            }.get(wizard.overall_status, '❓')
-            
-            status_color = {
-                'ok': '#28a745',
-                'warning': '#ffc107',
-                'over': '#dc3545'
-            }.get(wizard.overall_status, '#6c757d')
-            
-            status_text = {
-                'ok': 'Within Capacity',
-                'warning': 'Near Capacity Limit',
-                'over': 'CAPACITY EXCEEDED'
-            }.get(wizard.overall_status, 'Unknown')
-            
-            html_parts.append(f"""
-            <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 20px;">
-                <h2 style="margin: 0 0 10px 0; color: {status_color};">
-                    {status_icon} {status_text}
-                </h2>
-                <p style="margin: 0; color: #6c757d; font-size: 14px;">
-                    Capacity analysis for <strong>{wizard.vendor_name}</strong> 
-                    in <strong>{wizard.month_display}</strong>
-                </p>
-            </div>
-            """)
-            
-            # === Total Capacity Section ===
-            utilization = wizard.month_utilization_percent
-            progress_color = '#28a745'  # Green
-            if utilization >= 100:
-                progress_color = '#dc3545'  # Red
-            elif utilization >= 80:
-                progress_color = '#ffc107'  # Yellow
-            
-            progress_width = min(utilization, 100)  # Cap at 100% visual
-            
-            html_parts.append(f"""
-            <div style="margin-bottom: 30px;">
-                <h3 style="margin: 0 0 15px 0; font-size: 18px;">
-                    📦 Total Month Capacity
-                </h3>
-                
-                <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                        <span style="font-weight: bold;">Usage: {wizard.month_total_teu:.2f} / {wizard.month_capacity_teu:.2f} TEU</span>
-                        <span style="font-weight: bold; color: {progress_color};">{utilization:.1f}%</span>
-                    </div>
-                    
-                    <div style="background: #e9ecef; height: 30px; border-radius: 15px; overflow: hidden; position: relative;">
-                        <div style="background: {progress_color}; height: 100%; width: {progress_width}%; transition: width 0.3s;"></div>
-                        {f'<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">{utilization:.1f}%</div>' if progress_width > 20 else ''}
-                    </div>
-                    
-                    <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                        <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                            <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">This Run</div>
-                            <div style="font-size: 18px; font-weight: bold; color: #007bff;">{wizard.this_run_teu:.2f} TEU</div>
-                        </div>
-                        <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                            <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">Month Total</div>
-                            <div style="font-size: 18px; font-weight: bold;">{wizard.month_total_teu:.2f} TEU</div>
-                        </div>
-                        <div style="text-align: center; padding: 10px; background: #f8f9fa; border-radius: 5px;">
-                            <div style="font-size: 12px; color: #6c757d; margin-bottom: 5px;">Available</div>
-                            <div style="font-size: 18px; font-weight: bold; color: {'#28a745' if wizard.month_available_teu >= 0 else '#dc3545'};">
-                                {wizard.month_available_teu:.2f} TEU
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """)
-            
-            # === Constraint Checks Section ===
-            if wizard.constraint_check_ids:
-                html_parts.append(f"""
-                <div style="margin-bottom: 30px;">
-                    <h3 style="margin: 0 0 15px 0; font-size: 18px;">
-                        🎯 Product/Category Constraints
-                    </h3>
-                """)
-                
-                for constraint_check in wizard.constraint_check_ids:
-                    c_utilization = constraint_check.utilization_percent
-                    c_color = '#28a745'  # Green
-                    c_icon = '✅'
-                    
-                    if c_utilization >= 100:
-                        c_color = '#dc3545'  # Red
-                        c_icon = '❌'
-                    elif c_utilization >= 80:
-                        c_color = '#ffc107'  # Yellow
-                        c_icon = '⚠️'
-                    
-                    c_width = min(c_utilization, 100)
-                    
-                    html_parts.append(f"""
-                    <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 15px;">
-                        <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                            <span style="font-size: 20px; margin-right: 10px;">{c_icon}</span>
-                            <div style="flex: 1;">
-                                <div style="font-weight: bold; margin-bottom: 5px;">{constraint_check.constraint_name}</div>
-                                <div style="font-size: 12px; color: #6c757d;">{constraint_check.product_names}</div>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                            <span>Usage: {constraint_check.used_teu:.2f} / {constraint_check.limit_teu:.2f} TEU</span>
-                            <span style="font-weight: bold; color: {c_color};">{c_utilization:.1f}%</span>
-                        </div>
-                        
-                        <div style="background: #e9ecef; height: 20px; border-radius: 10px; overflow: hidden; position: relative;">
-                            <div style="background: {c_color}; height: 100%; width: {c_width}%; transition: width 0.3s;"></div>
-                        </div>
-                        
-                        {f'<div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 3px solid #ffc107; border-radius: 3px; font-size: 13px;"><strong>⚠️ Warning:</strong> Over limit by {constraint_check.over_by:.2f} TEU</div>' if constraint_check.over_by > 0 else ''}
-                    </div>
-                    """)
-                
-                html_parts.append("</div>")
-            else:
-                html_parts.append(f"""
-                <div style="padding: 15px; background: #e7f3ff; border-radius: 8px; border-left: 3px solid #007bff;">
-                    <strong>ℹ️ Info:</strong> No product/category constraints configured for this capacity.
-                </div>
-                """)
-            
-            # === Summary/Actions ===
-            if wizard.overall_status == 'over':
-                html_parts.append(f"""
-                <div style="padding: 15px; background: #f8d7da; border-radius: 8px; border-left: 3px solid #dc3545; margin-top: 20px;">
-                    <strong>❌ Action Required:</strong> Capacity exceeded! Consider:
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>Splitting production across multiple months</li>
-                        <li>Allocating to a different vendor</li>
-                        <li>Increasing vendor capacity for this period</li>
-                    </ul>
-                </div>
-                """)
-            elif wizard.overall_status == 'warning':
-                html_parts.append(f"""
-                <div style="padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 3px solid #ffc107; margin-top: 20px;">
-                    <strong>⚠️ Warning:</strong> Near capacity limit. Monitor additional allocations carefully.
-                </div>
-                """)
-            else:
-                html_parts.append(f"""
-                <div style="padding: 15px; background: #d4edda; border-radius: 8px; border-left: 3px solid #28a745; margin-top: 20px;">
-                    <strong>✅ All Clear:</strong> Within capacity limits. {wizard.month_available_teu:.2f} TEU still available this month.
-                </div>
-                """)
-            
-            wizard.result_html = ''.join(html_parts)
-
-    @api.model
-    def default_get(self, fields_list):
-        """Populate wizard from context"""
-        res = super().default_get(fields_list)
+            if wizard.date_to < wizard.date_from:
+                raise ValidationError(_("End date must be after start date."))
+    
+    # =========================================================================
+    # CAPACITY CHECK ALGORITHM
+    # =========================================================================
+    
+    def action_check_capacity(self):
+        """
+        Execute capacity compliance check
         
-        if 'default_check_result' in self.env.context:
-            check_result = self.env.context['default_check_result']
-            res['check_result_json'] = json.dumps(check_result)
-        
-        return res
-
-    @api.model
-    def create(self, vals):
-        """Create wizard and populate constraint checks"""
-        wizard = super().create(vals)
-        
-        # Parse check result and create constraint check lines
-        if wizard.check_result_json:
-            try:
-                result = json.loads(wizard.check_result_json)
-                
-                for constraint_check in result.get('constraint_checks', []):
-                    self.env['dm.capacity.check.constraint'].create({
-                        'wizard_id': wizard.id,
-                        'constraint_id': constraint_check['constraint_id'],
-                        'constraint_name': constraint_check['constraint_name'],
-                        'product_names': constraint_check['product_names'],
-                        'used_teu': constraint_check['used_teu'],
-                        'limit_teu': constraint_check['limit_teu'],
-                        'utilization_percent': constraint_check['utilization'],
-                        'over_by': constraint_check['over_by'],
-                        'compliant': constraint_check['compliant']
-                    })
-                    
-            except Exception as e:
-                _logger.error(f"Error parsing check result: {e}")
-        
-        return wizard
-
-    def action_close(self):
-        """Close the wizard"""
-        return {'type': 'ir.actions.act_window_close'}
-
-    def action_view_capacity_record(self):
-        """Open the vendor capacity record"""
+        Algorithm:
+        1. Get all capacity records for vendor in date range
+        2. Aggregate committed capacity by month
+        3. Check total capacity limits
+        4. Check constraint-specific limits
+        5. Report violations
+        """
         self.ensure_one()
         
-        if not self.production_run_id.vendor_capacity_id:
-            raise UserError(_('No capacity record found for this production run'))
+        _logger.info(f"Starting capacity check for vendor {self.vendor_id.name} "
+                    f"from {self.date_from} to {self.date_to}")
         
+        # Update progress
+        self.write({
+            'state': 'result',
+            'progress_message': 'Analyzing capacity records...',
+            'progress_percent': 10.0
+        })
+        
+        # Get capacity records for vendor in date range
+        capacity_records = self._get_capacity_records()
+        
+        if not capacity_records:
+            self.write({
+                'check_passed': True,
+                'result_message': self._format_no_capacity_message(),
+                'violation_count': 0,
+                'progress_percent': 100.0,
+                'progress_message': 'Complete'
+            })
+            return self._return_wizard_action()
+        
+        # Update progress
+        self.write({
+            'progress_message': 'Calculating monthly allocations...',
+            'progress_percent': 30.0
+        })
+        
+        # Get committed capacity (from deals requesting production)
+        monthly_commitments = self._get_monthly_commitments()
+        
+        # Update progress
+        self.write({
+            'progress_message': 'Checking capacity limits...',
+            'progress_percent': 60.0
+        })
+        
+        # Check capacity compliance
+        violations = self._check_capacity_compliance(
+            capacity_records, 
+            monthly_commitments
+        )
+        
+        # Update progress
+        self.write({
+            'progress_message': 'Generating report...',
+            'progress_percent': 90.0
+        })
+        
+        # Format results
+        result_html = self._format_results(
+            capacity_records,
+            monthly_commitments,
+            violations
+        )
+        
+        # Final update
+        self.write({
+            'check_passed': len(violations) == 0,
+            'result_message': result_html,
+            'violation_count': len(violations),
+            'progress_percent': 100.0,
+            'progress_message': 'Complete'
+        })
+        
+        _logger.info(f"Capacity check complete: {len(violations)} violations found")
+        
+        return self._return_wizard_action()
+    
+    def _get_capacity_records(self):
+        """Get capacity records overlapping with check period"""
+        return self.env['dm.vendor.capacity'].search([
+            ('vendor_id', '=', self.vendor_id.id),
+            ('active', '=', True),
+            '|',
+            '&',
+            ('valid_from', '<=', self.date_to),
+            '|',
+            ('valid_to', '=', False),
+            ('valid_to', '>=', self.date_from),
+            '&',
+            ('valid_from', '<=', self.date_from),
+            ('valid_to', '=', False),
+        ])
+    
+    def _get_monthly_commitments(self):
+        """
+        Get monthly committed capacity from deals
+        
+        Returns:
+            dict: {
+                'YYYY-MM': {
+                    'total_teu': float,
+                    'by_product': {product_id: teu_amount, ...}
+                }
+            }
+        """
+        # TODO Sprint 5: Query dm.deal records requesting production
+        # For now, return empty commitments
+        return {}
+    
+    def _check_capacity_compliance(self, capacity_records, monthly_commitments):
+        """
+        Check if commitments exceed capacity limits
+        
+        Returns:
+            list: [{'month': 'YYYY-MM', 'type': 'total|constraint', 'message': '...'}]
+        """
+        violations = []
+        
+        # For each month in range
+        current = self.date_from.replace(day=1)
+        end = self.date_to.replace(day=1)
+        
+        while current <= end:
+            month_key = current.strftime('%Y-%m')
+            
+            # Get active capacity for this month
+            active_capacity = self._get_active_capacity_for_month(
+                capacity_records, 
+                current
+            )
+            
+            if not active_capacity:
+                current = current + relativedelta(months=1)
+                continue
+            
+            # Get commitments for this month
+            commitments = monthly_commitments.get(month_key, {})
+            total_committed = commitments.get('total_teu', 0.0)
+            
+            # Check total capacity
+            if total_committed > active_capacity.effective_capacity_teu:
+                violations.append({
+                    'month': month_key,
+                    'type': 'total',
+                    'message': f"Total capacity exceeded: {total_committed:.2f} TEU committed "
+                              f"vs {active_capacity.effective_capacity_teu:.2f} TEU available"
+                })
+            
+            # Check constraint-specific limits
+            for constraint in active_capacity.constraint_ids.filtered('active'):
+                constraint_committed = self._calculate_constraint_committed(
+                    constraint,
+                    commitments.get('by_product', {})
+                )
+                
+                if constraint_committed > constraint.effective_max_capacity_teu:
+                    violations.append({
+                        'month': month_key,
+                        'type': 'constraint',
+                        'constraint_name': constraint.name,
+                        'message': f"Constraint '{constraint.name}' exceeded: "
+                                  f"{constraint_committed:.2f} TEU committed "
+                                  f"vs {constraint.effective_max_capacity_teu:.2f} TEU limit"
+                    })
+            
+            current = current + relativedelta(months=1)
+        
+        return violations
+    
+    def _get_active_capacity_for_month(self, capacity_records, month_date):
+        """Get capacity record active for given month"""
+        for capacity in capacity_records:
+            if capacity.valid_from <= month_date:
+                if not capacity.valid_to or capacity.valid_to >= month_date:
+                    return capacity
+        return False
+    
+    def _calculate_constraint_committed(self, constraint, product_commitments):
+        """Calculate committed TEU for products matching constraint"""
+        total = 0.0
+        
+        constrained_products = constraint.get_constrained_products()
+        
+        for product_id, teu_amount in product_commitments.items():
+            product = self.env['product.product'].browse(product_id)
+            if product in constrained_products:
+                total += teu_amount
+        
+        return total
+    
+    # =========================================================================
+    # RESULT FORMATTING
+    # =========================================================================
+    
+    def _format_results(self, capacity_records, commitments, violations):
+        """Format check results as HTML"""
+        html = ['<div style="font-family: Arial, sans-serif;">']
+        
+        # Summary header
+        if violations:
+            html.append(
+                f'<h3 style="color: #d9534f;">⚠️ Capacity Check Failed</h3>'
+                f'<p><strong>{len(violations)} violation(s) found</strong></p>'
+            )
+        else:
+            html.append(
+                f'<h3 style="color: #5cb85c;">✓ Capacity Check Passed</h3>'
+                f'<p>All capacity limits respected in the checked period.</p>'
+            )
+        
+        # Violations detail
+        if violations:
+            html.append('<h4>Violations:</h4><ul>')
+            for v in violations:
+                html.append(f'<li><strong>{v["month"]}:</strong> {v["message"]}</li>')
+            html.append('</ul>')
+        
+        # Capacity summary
+        html.append('<h4>Capacity Configuration:</h4><ul>')
+        for capacity in capacity_records:
+            period = f"{capacity.valid_from} to {capacity.valid_to or 'Present'}"
+            html.append(
+                f'<li>{period}: <strong>{capacity.effective_capacity_teu:.2f} TEU/month</strong>'
+            )
+            if capacity.constraint_ids:
+                html.append('<ul>')
+                for constraint in capacity.constraint_ids.filtered('active'):
+                    html.append(
+                        f'<li>{constraint.name}: '
+                        f'{constraint.effective_max_capacity_teu:.2f} TEU/month</li>'
+                    )
+                html.append('</ul>')
+            html.append('</li>')
+        html.append('</ul>')
+        
+        html.append('</div>')
+        
+        return ''.join(html)
+    
+    def _format_no_capacity_message(self):
+        """Format message when no capacity configured"""
+        return f"""
+        <div style="font-family: Arial, sans-serif;">
+            <h3 style="color: #f0ad4e;">⚠️ No Capacity Configured</h3>
+            <p>Vendor <strong>{self.vendor_id.name}</strong> has no capacity records 
+            for the period {self.date_from} to {self.date_to}.</p>
+            <p>Please configure capacity before allocating production.</p>
+        </div>
+        """
+    
+    def _return_wizard_action(self):
+        """Return action to keep wizard open"""
         return {
-            'name': _('Vendor Capacity'),
             'type': 'ir.actions.act_window',
-            'res_model': 'dm.vendor.capacity',
-            'res_id': self.production_run_id.vendor_capacity_id.id,
+            'res_model': self._name,
+            'res_id': self.id,
             'view_mode': 'form',
-            'target': 'current'
+            'target': 'new',
         }
-
-
-class CapacityCheckConstraint(models.TransientModel):
-    """Individual constraint check result line"""
     
-    _name = 'dm.capacity.check.constraint'
-    _description = 'Capacity Check Constraint Result'
-    _order = 'utilization_percent desc'
-
-    wizard_id = fields.Many2one(
-        'dm.capacity.check.wizard',
-        string='Wizard',
-        required=True,
-        ondelete='cascade'
-    )
+    # =========================================================================
+    # ACTIONS
+    # =========================================================================
     
-    constraint_id = fields.Many2one(
-        'dm.vendor.capacity.constraint',
-        string='Constraint',
-        readonly=True
-    )
+    def action_close(self):
+        """Close wizard"""
+        return {'type': 'ir.actions.act_window_close'}
     
-    constraint_name = fields.Char(
-        string='Constraint',
-        readonly=True
-    )
-    
-    product_names = fields.Text(
-        string='Products/Categories',
-        readonly=True
-    )
-    
-    used_teu = fields.Float(
-        string='Used TEU',
-        readonly=True,
-        digits=(10, 2)
-    )
-    
-    limit_teu = fields.Float(
-        string='Limit TEU',
-        readonly=True,
-        digits=(10, 2)
-    )
-    
-    utilization_percent = fields.Float(
-        string='Utilization %',
-        readonly=True,
-        digits=(5, 1)
-    )
-    
-    over_by = fields.Float(
-        string='Over By',
-        readonly=True,
-        digits=(10, 2)
-    )
-    
-    compliant = fields.Boolean(
-        string='Compliant',
-        readonly=True
-    )
-    
-    status_icon = fields.Char(
-        string='Status',
-        compute='_compute_status_icon'
-    )
-
-    @api.depends('compliant', 'utilization_percent')
-    def _compute_status_icon(self):
-        for check in self:
-            if check.utilization_percent >= 100:
-                check.status_icon = '❌'
-            elif check.utilization_percent >= 80:
-                check.status_icon = '⚠️'
-            else:
-                check.status_icon = '✅'
+    def action_reset(self):
+        """Reset to input state"""
+        self.write({
+            'state': 'input',
+            'check_passed': False,
+            'result_message': False,
+            'violation_count': 0,
+            'progress_message': False,
+            'progress_percent': 0.0,
+        })
+        return self._return_wizard_action()

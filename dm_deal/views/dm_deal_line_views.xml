@@ -1,48 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ================================================================ -->
-    <!-- DEAL LINE VIEWS -->
-    <!-- ================================================================ -->
     
-    <!-- Deal Line Tree View -->
+    <!-- ========================================================================
+         DEAL LINE TREE VIEW
+         ======================================================================== -->
+    
     <record id="view_dm_deal_line_tree" model="ir.ui.view">
         <field name="name">dm.deal.line.tree</field>
         <field name="model">dm.deal.line</field>
         <field name="arch" type="xml">
             <tree string="Deal Lines" 
-                  decoration-warning="production_status == 'variance' or loading_status == 'variance'"
+                  decoration-danger="loading_status == 'variance'"
                   decoration-muted="deal_state == 'cancelled'">
                 
                 <field name="deal_id"/>
                 <field name="product_id"/>
                 <field name="product_packaging_id"/>
                 
-                <!-- Three-Quantity Display -->
+                <!-- Three-Quantity System (Package-Native) -->
                 <field name="quantity_packaging" string="Ordered" sum="Total Ordered"/>
                 <field name="quantity_produced" string="Produced" optional="show" sum="Total Produced"/>
                 <field name="quantity_loaded" string="Loaded" optional="show" sum="Total Loaded"/>
                 
-                <!-- Variance Columns -->
+                <!-- Variance columns -->
                 <field name="quantity_variance_production" 
                        string="Prod. Var." 
                        optional="hide"
-                       decoration-danger="quantity_variance_production &lt; 0"/>
+                       decoration-danger="quantity_variance_production &lt; 0"
+                       decoration-success="quantity_variance_production &gt; 0"/>
+                
                 <field name="quantity_variance_loading" 
                        string="Load Var." 
                        optional="hide"
-                       decoration-danger="quantity_variance_loading &lt; 0"/>
+                       decoration-danger="quantity_variance_loading &lt; 0"
+                       decoration-success="quantity_variance_loading &gt; 0"/>
                 
-                <!-- Status Indicators -->
-                <field name="production_status" widget="badge" optional="show"/>
-                <field name="loading_status" widget="badge" optional="show"/>
+                <field name="quantity_variance_total" 
+                       string="Total Var." 
+                       optional="hide"
+                       decoration-danger="quantity_variance_total &lt; 0"
+                       decoration-success="quantity_variance_total &gt; 0"/>
                 
-                <!-- Prices and Amounts -->
-                <field name="price_packaging_sale" string="Sale Price"/>
-                <field name="amount_sale" sum="Total Sale"/>
-                <field name="price_packaging_purchase" string="Purchase Price" optional="hide"/>
-                <field name="amount_purchase" sum="Total Purchase" optional="hide"/>
-                <field name="margin_amount" sum="Total Margin" optional="show"/>
-                <field name="margin_percentage" avg="Avg Margin %" optional="show"/>
+                <!-- Status Badges -->
+                
+                <field name="loading_status" widget="badge" optional="hide"
+                       decoration-info="loading_status == 'pending'"
+                       decoration-success="loading_status == 'loaded'"
+                       decoration-danger="loading_status == 'variance'"/>
+                
+                <!-- Lot Information -->
+                <field name="lots_info_display" string="Lots" optional="show"/>
+                
+				<!-- Prices and Amounts -->
+				<field name="price_packaging_sale" string="Sale Price" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+				<field name="amount_sale" sum="Total Sale" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="amount_loaded_sale" string="Loaded (Sale)" sum="Total Loaded" optional="show" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+				<field name="price_packaging_purchase" string="Purchase Price" optional="hide" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+				<field name="amount_purchase" sum="Total Purchase" optional="hide" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                <field name="amount_loaded_purchase" string="Loaded (Purch)" sum="Total Loaded" optional="hide" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+				<field name="margin_amount" sum="Total Margin" optional="show" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+				<field name="margin_percentage" avg="Avg Margin %" optional="show"/>
                 
                 <!-- Hidden fields for conditions -->
                 <field name="deal_state" invisible="1"/>
@@ -51,7 +68,10 @@
         </field>
     </record>
     
-    <!-- Deal Line Form View -->
+    <!-- ========================================================================
+         DEAL LINE FORM VIEW
+         ======================================================================== -->
+    
     <record id="view_dm_deal_line_form" model="ir.ui.view">
         <field name="name">dm.deal.line.form</field>
         <field name="model">dm.deal.line</field>
@@ -78,8 +98,8 @@
                     </group>
                     
                     <notebook>
-                        <!-- Quantities Page (NEW - Phase 4B Step 2) -->
-                        <page string="Quantities" name="quantities">
+                        <!-- Quantities & Lots Page - INTEGRATED -->
+                        <page string="Quantities &amp; Lots" name="quantities">
                             <group>
                                 <group string="Entry Mode">
                                     <field name="entry_mode" widget="radio"/>
@@ -100,56 +120,125 @@
                                            readonly="entry_mode == 'pkg'"/>
                                 </group>
                                 
-                                <group string="Produced (Actual)">
+                                <group string="Produced (Optional)">
                                     <field name="quantity_produced" 
                                            string="Packages Produced"
-                                           readonly="1"/>
-                                    <field name="quantity_produced_units" 
-                                           string="Units Produced"
-                                           readonly="1"/>
-                                    <field name="quantity_variance_production"
-                                           decoration-danger="quantity_variance_production &lt; 0"
-                                           decoration-success="quantity_variance_production &gt; 0"/>
-                                    <field name="production_status" widget="badge"/>
+                                           readonly="deal_state not in ['confirmed', 'in_production', 'ready']"
+                                           help="Optional - rarely tracked"/>
                                 </group>
                             </group>
                             
-                            <group>
-                                <group string="Loaded (Shipped)">
-                                    <field name="quantity_loaded" 
-                                           string="Packages Loaded"
-                                           readonly="1"/>
-                                    <field name="quantity_loaded_units" 
-                                           string="Units Loaded"
-                                           readonly="1"/>
-                                    <field name="quantity_variance_loading"
-                                           decoration-danger="quantity_variance_loading &lt; 0"
-                                           decoration-success="quantity_variance_loading &gt; 0"/>
-                                    <field name="loading_status" widget="badge"/>
-                                </group>
-                                
-                                <group string="Summary">
-                                    <field name="quantity_variance_total" 
-                                           string="Total Variance (Ordered → Loaded)"
-                                           decoration-danger="quantity_variance_total &lt; 0"
-                                           decoration-success="quantity_variance_total &gt; 0"/>
-                                    <field name="production_progress" widget="percentage"/>
-                                </group>
-                            </group>
-                            
-                            <separator string="Invoicing Tracking"/>
+                            <!-- LOADED QUANTITY - KEY FIELD -->
+                            <separator string="LOADED QUANTITY (Enter from Shipping Documents)"/>
                             <group>
                                 <group>
-                                    <field name="quantity_invoiced" readonly="1"/>
+                                    <field name="quantity_loaded" 
+                                           string="Packages Loaded"
+                                           readonly="deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"
+                                           class="oe_inline oe_edit_only"
+                                           help="CRITICAL: Actual quantity shipped - basis for invoicing"/>
+                                    <field name="quantity_variance_total"
+                                           readonly="1"
+                                           decoration-danger="quantity_variance_total &lt; 0"
+                                           decoration-success="quantity_variance_total &gt; 0"/>
                                 </group>
-                                <group/>
+                                <group>
+                                    <field name="amount_loaded_sale" string="Value Loaded (Sale)" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                    <field name="amount_loaded_purchase" string="Value Loaded (Purchase)" readonly="1" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                                </group>
                             </group>
+                            
+                            <!-- LOT TRACKING - PROGRESSIVE DISCLOSURE -->
+                            <separator string="LOT INFORMATION (Required for Traceability)"/>
+                            
+                            <!-- Hidden helper fields -->
+                            <field name="has_multiple_lots" invisible="1"/>
+                            <field name="lot_count" invisible="1"/>
+                            
+							<!-- QUICK LOT ENTRY (lot_count = 0 or 1) -->
+							<group string="Lot Information" 
+								   invisible="lot_count &gt; 1">
+								<group>
+									<field name="quick_lot_number" 
+										   string="Lot Number"
+										   placeholder="e.g. ABC123456"
+										   readonly="deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"/>
+									<field name="quick_production_date"
+										   string="Production Date"
+										   readonly="deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"/>
+									<field name="quick_expiry_date"
+										   string="Expiry Date"
+										   readonly="deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"/>
+								</group>
+								<group>
+									<button name="action_manage_lots" 
+											string="Open Lot Manager" 
+											type="object"
+											class="btn-primary"
+											icon="fa-list"
+											invisible="quantity_loaded == 0 or deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"
+											help="Open wizard for advanced lot management"/>
+								</group>
+							</group>
+                            
+							<!-- MULTIPLE LOTS DISPLAY (lot_count > 1) -->
+							<group string="Multiple Lots" 
+								   invisible="lot_count &lt;= 1">
+
+                                <group>
+                                    <field name="total_lotted_quantity" readonly="1" string="Total Allocated"/>
+                                    <field name="quantity_loaded" readonly="1" 
+                                           string="Target Quantity"
+                                           help="Total to allocate across lots"
+                                           decoration-danger="abs(total_lotted_quantity - quantity_loaded) &gt; 0.001"/>
+                                </group>
+                                <group>
+                                    <button name="action_manage_lots" 
+                                            string="Manage Lots" 
+                                            type="object"
+                                            class="btn-primary"
+                                            icon="fa-list"
+                                            invisible="deal_state not in ['confirmed', 'in_production', 'ready', 'shipped']"
+                                            help="Open lot wizard to add/edit/remove lots"/>
+                                    
+                                </group>
+                            </group>
+                            
+                            <!-- Lot List (when multiple) -->
+                            <field name="lot_ids" 
+                                   nolabel="1" 
+                                   invisible="lot_count == 0"
+                                   context="{'default_deal_line_id': id}">
+                                <tree editable="bottom" decoration-danger="is_expired">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="lot_number"/>
+                                    <field name="quantity" sum="Total"/>
+                                    <field name="production_date"/>
+                                    <field name="expiry_date"/>
+                                    <field name="days_to_expiry" optional="show"/>
+                                    <field name="is_expired" invisible="1"/>
+                                    <field name="notes"/>
+                                </tree>
+                            </field>
+                            
+                            <div class="alert alert-info" role="alert" 
+                                 invisible="quantity_loaded &gt; 0"
+                                 style="margin: 16px;">
+                                <p class="mb-0">
+                                    <strong>ℹ️ When to Enter Lot Information:</strong><br/>
+                                    Enter lot numbers and dates when you receive shipping confirmation from the factory/forwarder.
+                                    <ul>
+                                        <li><strong>Single lot:</strong> Enter directly in the fields above</li>
+                                        <li><strong>Multiple lots:</strong> Click "Split into Multiple Lots" to use the wizard</li>
+                                    </ul>
+                                </p>
+                            </div>
                         </page>
                         
                         <!-- Pricing Page -->
                         <page string="Pricing" name="pricing">
                             <group>
-                                <group string="Sale Pricing">
+                                <group string="Sales Pricing">
                                     <field name="price_packaging_sale" 
                                            string="Price per Package"
                                            readonly="deal_id.prices_readonly"/>
@@ -159,7 +248,10 @@
                                     <field name="price_per_kg_sale" 
                                            string="Price per kg"
                                            readonly="1"/>
-                                    <field name="amount_sale" readonly="1"/>
+                                    <field name="amount_sale" readonly="1" string="Amount (Ordered)"/>
+                                    <field name="amount_loaded_sale" readonly="1" string="Amount (Loaded)" 
+                                           class="text-primary font-weight-bold"
+                                           help="Actual invoicing amount based on loaded quantity"/>
                                 </group>
                                 
                                 <group string="Purchase Pricing">
@@ -172,14 +264,17 @@
                                     <field name="price_per_kg_purchase" 
                                            string="Price per kg"
                                            readonly="1"/>
-                                    <field name="amount_purchase" readonly="1"/>
+                                    <field name="amount_purchase" readonly="1" string="Amount (Ordered)"/>
+                                    <field name="amount_loaded_purchase" readonly="1" string="Amount (Loaded)"
+                                           class="text-primary font-weight-bold"
+                                           help="Expected supplier invoice based on loaded quantity"/>
                                 </group>
                             </group>
                             
                             <group>
                                 <group string="Margin">
-                                    <field name="margin_amount" readonly="1"/>
-                                    <field name="margin_percentage" readonly="1" widget="percentage"/>
+                                    <field name="margin_amount" readonly="1" string="Margin (Ordered)"/>
+                                    <field name="margin_percentage" readonly="1" widget="percentage" string="Margin % (Ordered)"/>
                                 </group>
                                 <group>
                                     <field name="currency_id" invisible="1"/>
@@ -239,7 +334,10 @@
         </field>
     </record>
     
-    <!-- Deal Line Search View -->
+    <!-- ========================================================================
+         DEAL LINE SEARCH VIEW
+         ======================================================================== -->
+    
     <record id="view_dm_deal_line_search" model="ir.ui.view">
         <field name="name">dm.deal.line.search</field>
         <field name="model">dm.deal.line</field>
@@ -249,19 +347,11 @@
                 <field name="product_id"/>
                 <field name="product_packaging_id"/>
                 <field name="customer_product_code"/>
-                
-                <filter string="Production Pending" 
-                        name="production_pending"
-                        domain="[('production_status', '=', 'pending')]"/>
-                <filter string="Production Variance" 
-                        name="production_variance"
-                        domain="[('production_status', '=', 'variance')]"/>
-                <filter string="Production Complete" 
-                        name="production_complete"
-                        domain="[('production_status', '=', 'completed')]"/>
+                <field name="lot_ids" string="Lot Number" filter_domain="[('lot_ids.lot_number', 'ilike', self)]"/>
                 
                 <separator/>
                 
+                <!-- Loading Status Filters -->
                 <filter string="Loading Pending" 
                         name="loading_pending"
                         domain="[('loading_status', '=', 'pending')]"/>
@@ -274,15 +364,33 @@
                 
                 <separator/>
                 
+				<!-- Lot Tracking Filters -->
+				<filter string="Has Lots" 
+						name="has_lots"
+						domain="[('lot_ids', '!=', False)]"/>
+				<filter string="No Lots" 
+						name="no_lots"
+						domain="[('lot_ids', '=', False), ('quantity_loaded', '>', 0)]"/>
+                
+                <separator/>
+                
+                <!-- Combined Filters -->
+				<filter string="Has Variance" 
+						name="has_variance"
+						domain="[('loading_status', '=', 'variance')]"/>
+                
+                <separator/>
+                
+                <!-- Deal State Filters -->
                 <filter string="Active Deals" 
                         name="active_deals"
                         domain="[('deal_state', 'not in', ['cancelled', 'completed'])]"/>
                 
+                <!-- Group By -->
                 <group expand="0" string="Group By">
                     <filter string="Deal" name="group_deal" context="{'group_by': 'deal_id'}"/>
                     <filter string="Product" name="group_product" context="{'group_by': 'product_id'}"/>
                     <filter string="Packaging" name="group_packaging" context="{'group_by': 'product_packaging_id'}"/>
-                    <filter string="Production Status" name="group_production_status" context="{'group_by': 'production_status'}"/>
                     <filter string="Loading Status" name="group_loading_status" context="{'group_by': 'loading_status'}"/>
                     <filter string="Deal State" name="group_deal_state" context="{'group_by': 'deal_state'}"/>
                 </group>
@@ -290,7 +398,10 @@
         </field>
     </record>
     
-    <!-- Deal Line Action -->
+    <!-- ========================================================================
+         DEAL LINE ACTION
+         ======================================================================== -->
+    
     <record id="action_dm_deal_line" model="ir.actions.act_window">
         <field name="name">Deal Lines</field>
         <field name="res_model">dm.deal.line</field>

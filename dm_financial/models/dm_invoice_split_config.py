@@ -250,51 +250,51 @@ class DmInvoiceSplitConfig(models.Model):
             else:
                 config.include_insurance = False
     
+    @api.depends('deal_id')
     def _compute_shipment_id(self):
+        """Get first shipment linked to this deal (if dm_shipment installed)"""
         for config in self:
-            # Safe check for shipment_ids field
-            if config.deal_id:
-                try:
-                    # Check if field exists and is accessible
-                    if hasattr(config.deal_id, 'shipment_ids') and config.deal_id.shipment_ids:
-                        # ... existing code (keep whatever was here)
-                        config.shipment_id = config.deal_id.shipment_ids[0] if config.deal_id.shipment_ids else False
-                    else:
-                        config.shipment_id = False
-                except Exception as e:
-                    _logger.debug(f"Could not access shipment_ids for deal {config.deal_id.name}: {e}")
-                    config.shipment_id = False
+            # Graceful degradation if dm_shipment not installed
+            if not hasattr(config.deal_id, 'shipment_ids'):
+                config.shipment_id = False
+                continue
+            
+            if config.deal_id and config.deal_id.shipment_ids:
+                config.shipment_id = config.deal_id.shipment_ids[0]
             else:
                 config.shipment_id = False
     
-    @api.depends('shipment_id', 'shipment_id.state')
+    @api.depends('deal_id')
     def _compute_loading_confirmed(self):
-        """Check if loading is confirmed"""
+        """Check if loading is confirmed (if dm_shipment installed)"""
         for config in self:
-            config.loading_confirmed = config.shipment_id and config.shipment_id.state in ['in_transit', 'delivered']
+            # Graceful degradation if dm_shipment not installed
+            if not hasattr(config.deal_id, 'shipment_ids'):
+                config.loading_confirmed = False
+                continue
+            
+            shipment = config.deal_id.shipment_ids[:1] if config.deal_id else False
+            config.loading_confirmed = shipment and shipment.state in ['in_transit', 'delivered']
     
-    @api.depends('shipment_id', 'shipment_id.state', 'deal_id', 'deal_id.total_sale_amount')
+    @api.depends('deal_id.line_ids.quantity_loaded', 'deal_id.line_ids.price_packaging_sale')
     def _compute_actual_amounts(self):
-        """Calculate actual goods value based on loaded quantities
-        
-        REFACTORED v1.1.0: Module-independent pattern
-        - Uses shipment line data if dm_shipment is installed and has lines
-        - Falls back to deal amounts if shipment data unavailable
-        - No hard dependency on shipment.line_ids field
-        """
+        """Calculate actual goods value from deal loaded quantities"""
         for config in self:
-            if config.shipment_id:
-                # Try to get actual loaded quantities from shipment (if structure exists)
-                actual_value = config._get_actual_value_from_shipment()
-                
-                if actual_value > 0:
-                    config.actual_goods_value = actual_value
-                else:
-                    # Fallback: Use deal's total sale amount
-                    config.actual_goods_value = config.deal_id.total_sale_amount or 0
-            else:
-                # No shipment yet: Use deal's total sale amount as estimate
-                config.actual_goods_value = config.deal_id.total_sale_amount or 0
+            if not config.deal_id:
+                config.actual_goods_value = 0.0
+                continue
+            
+            # Calculate from deal lines with loaded quantities
+            # Falls back to ordered quantities if loaded not available
+            goods_total = 0.0
+            for deal_line in config.deal_id.line_ids:
+                # Use loaded quantity if available, otherwise ordered
+                qty = getattr(deal_line, 'quantity_loaded', 0) or \
+                      getattr(deal_line, 'quantity_packaging', 0)
+                price = getattr(deal_line, 'price_packaging_sale', 0)
+                goods_total += qty * price
+            
+            config.actual_goods_value = goods_total
     
     def _get_actual_value_from_shipment(self):
         """Helper to safely extract actual loaded values from shipment
@@ -344,62 +344,63 @@ class DmInvoiceSplitConfig(models.Model):
         
         return actual_value
     
-    @api.depends('split_type', 'product_percentage', 'actual_goods_value',
-                 'freight_amount', 'insurance_amount',
-                 'include_freight', 'include_insurance')
+    @api.depends(
+        'product_percentage', 'service_percentage',
+        'freight_amount', 'insurance_amount',
+        'include_freight', 'include_insurance',
+        'actual_goods_value'
+    )
     def _compute_estimated_amounts(self):
-        """Calculate estimated split amounts for preview"""
+        """Calculate estimated invoice amounts based on actual goods value"""
         for config in self:
-            # Update percentage based on split type
-            if config.split_type == '80_20':
-                config.product_percentage = 80.0
-            elif config.split_type == '70_30':
-                config.product_percentage = 70.0
-            elif config.split_type == '90_10':
-                config.product_percentage = 90.0
-            # Custom keeps current value
+            # Use actual_goods_value (already computed from deal loaded/ordered quantities)
+            goods_total = config.actual_goods_value
             
-            # Use actual goods value if available, otherwise use deal total
-            goods_value = config.actual_goods_value or config.deal_id.total_value
+            if goods_total == 0:
+                config.estimated_product_amount = 0.0
+                config.estimated_service_amount = 0.0
+                config.estimated_total_amount = 0.0
+                continue
             
-            # Product invoice: percentage of goods value only
-            config.estimated_product_amount = goods_value * (config.product_percentage / 100.0)
+            # Product invoice: percentage of goods
+            product_amount = goods_total * (config.product_percentage / 100.0)
             
-            # Service invoice: percentage of goods value PLUS freight/insurance
-            service_base = goods_value * (config.service_percentage / 100.0)
+            # Service invoice: percentage of goods + logistics costs
+            service_base = goods_total * (config.service_percentage / 100.0)
+            service_amount = service_base
             
-            # Add freight and insurance ON TOP
             if config.include_freight:
-                service_base += config.freight_amount
+                service_amount += config.freight_amount
             if config.include_insurance:
-                service_base += config.insurance_amount
+                service_amount += config.insurance_amount
             
-            config.estimated_service_amount = service_base
-            config.estimated_total_amount = config.estimated_product_amount + config.estimated_service_amount
+            config.estimated_product_amount = product_amount
+            config.estimated_service_amount = service_amount
+            config.estimated_total_amount = product_amount + service_amount
     
-    @api.depends('deal_id', 'estimated_product_amount', 'estimated_service_amount')
+    @api.depends(
+        'deal_id', 'deal_id.downpayment_request_ids',
+        'deal_id.downpayment_request_ids.amount_received',
+        'estimated_product_amount', 'estimated_service_amount'
+    )
     def _compute_downpayments(self):
-        """Calculate downpayment allocation"""
+        """Allocate downpayments pro-rata to product and service invoices"""
         for config in self:
-            # Get paid downpayments
-            dp_requests = self.env['dm.downpayment.request'].search([
-                ('deal_id', '=', config.deal_id.id),
-                ('request_type', '=', 'customer'),
-                ('state', '=', 'paid')
-            ])
+            dp_requests = config.deal_id.downpayment_request_ids.filtered(
+                lambda r: r.payment_type == 'inbound' and r.state == 'paid'
+            )
             
-            config.downpayment_total = sum(dp_requests.mapped('amount_received'))
+            total_dp = sum(dp_requests.mapped('amount_received'))
+            config.downpayment_total = total_dp
             
-            # Pro-rata allocation based on invoice amounts
-            if config.estimated_total_amount > 0:
-                product_ratio = config.estimated_product_amount / config.estimated_total_amount
-                service_ratio = config.estimated_service_amount / config.estimated_total_amount
-                
-                config.product_downpayment = config.downpayment_total * product_ratio
-                config.service_downpayment = config.downpayment_total * service_ratio
+            total_invoice = config.estimated_product_amount + config.estimated_service_amount
+            
+            if total_invoice > 0:
+                config.product_downpayment = total_dp * (config.estimated_product_amount / total_invoice)
+                config.service_downpayment = total_dp * (config.estimated_service_amount / total_invoice)
             else:
-                config.product_downpayment = 0
-                config.service_downpayment = 0
+                config.product_downpayment = 0.0
+                config.service_downpayment = 0.0
     
     @api.onchange('split_type')
     def _onchange_split_type(self):
@@ -576,7 +577,7 @@ class DmInvoiceSplitConfig(models.Model):
         # Get downpayments to apply
         dp_requests = self.env['dm.downpayment.request'].search([
             ('deal_id', '=', self.deal_id.id),
-            ('request_type', '=', 'customer'),
+            ('payment_type', '=', 'inbound'),
             ('state', '=', 'paid')
         ])
         total_dp = sum(dp_requests.mapped('amount_received'))

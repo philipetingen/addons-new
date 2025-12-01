@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
 from datetime import timedelta
 import logging
@@ -8,41 +9,22 @@ _logger = logging.getLogger(__name__)
 class DmDealMilestones(models.Model):
     """Deal Milestone Management Extension
     
-    Extracted from dm_deal.py v3.1 + Bi-directional Sync Logic
-    
     Key Features:
     - Three-layer milestone date management (requested/current/actual)
     - Bi-directional sync between requested ↔ current
     - Requested preserves original intent (never overwritten by CASCADE)
     - Current evolves through deal lifecycle
     - All sync actions logged for audit trail
+    
+    Note: Milestone field definitions are in dm_deal.py core.
+    This file adds computed fields, sync logic, and onchange handlers.
     """
-    _name = 'dm.deal'
     _inherit = 'dm.deal'
     
-    # ============================================================
-    # MILESTONE MATRIX - THREE-LAYER DATES
-    # ============================================================
+    # =========================================================================
+    # COMPUTED MILESTONE FIELDS
+    # =========================================================================
     
-    # Milestone 1: Order Confirmation (uses confirmation_date from parent)
-    
-    # Milestone 2: Production Start
-    production_start_requested = fields.Date(
-        string='Production Start Requested',
-        tracking=True,
-        help='Original requested production start date - preserves initial intent'
-    )
-    production_start_current = fields.Date(
-        string='Production Start Current',
-        tracking=True,
-        help='Current planned production start date - may change via CASCADE'
-    )
-    production_start_actual = fields.Date(
-        string='Production Start Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual production start date (set by production module)'
-    )
     production_start_calculated = fields.Date(
         string='Calculated Production Start',
         compute='_compute_production_start_calculated',
@@ -50,101 +32,33 @@ class DmDealMilestones(models.Model):
         help='Auto-calculated: RTS - Production Cycle Time'
     )
     
-    # Milestone 3: Ready to Ship (RTS)
-    rts_requested = fields.Date(
-        string='RTS Requested',
-        help='Ready to Ship date requested by customer - original baseline',
-        tracking=True,
-        readonly="state not in ['draft', 'confirmed']"
-    )
-    rts_current = fields.Date(
-        string='RTS Current',
-        help='Negotiated Ready to Ship date - working value',
-        tracking=True
-    )
-    rts_actual = fields.Date(
-        string='RTS Actual',
-        help='Actual Ready to Ship date',
-        readonly=True,
-        tracking=True
-    )
+    @api.depends('rts_current', 'rts_requested', 'line_ids.product_id.total_production_cycle', 'production_start_requested')
+    def _compute_production_start_calculated(self):
+        """
+        Calculate production start date from RTS minus production cycle.
+        
+        Note: This is a display-only computed field. The actual population of
+        production_start_current happens via onchange or explicit writes.
+        """
+        for deal in self:
+            if deal.production_start_requested:
+                deal.production_start_calculated = deal.production_start_requested
+                continue
+            
+            rts_date = deal.rts_current or deal.rts_requested
+            
+            if rts_date and deal.line_ids:
+                max_cycle = max(
+                    (line.product_id.total_production_cycle or 21)
+                    for line in deal.line_ids
+                ) if deal.line_ids else 21
+                deal.production_start_calculated = rts_date - timedelta(days=max_cycle)
+            else:
+                deal.production_start_calculated = False
     
-    # Milestone 4: Loading
-    loading_requested = fields.Date(
-        string='Loading Requested',
-        tracking=True,
-        help='Requested loading date at factory - original baseline'
-    )
-    loading_current = fields.Date(
-        string='Loading Current',
-        tracking=True,
-        help='Current planned loading date - working value'
-    )
-    loading_actual = fields.Date(
-        string='Loading Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual loading date (set by shipment module)'
-    )
-    
-    # Milestone 5: ETD (Estimated Time of Departure)
-    etd_requested = fields.Date(
-        string='ETD Requested',
-        tracking=True,
-        help='Requested vessel departure date - original baseline'
-    )
-    etd_current = fields.Date(
-        string='ETD Current',
-        tracking=True,
-        help='Current estimated departure date - working value'
-    )
-    etd_actual = fields.Date(
-        string='ETD Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual departure date (set by shipment module)'
-    )
-    
-    # Milestone 6: ETA (Estimated Time of Arrival)
-    eta_requested = fields.Date(
-        string='ETA Requested',
-        help='Arrival date requested by customer - original baseline',
-        tracking=True,
-        readonly="state not in ['draft', 'confirmed']"
-    )
-    eta_current = fields.Date(
-        string='ETA Current',
-        help='Current estimated arrival date - working value',
-        tracking=True
-    )
-    eta_actual = fields.Date(
-        string='ETA Actual',
-        help='Actual arrival date',
-        readonly=True,
-        tracking=True
-    )
-    
-    # Milestone 7: Delivery
-    delivery_requested = fields.Date(
-        string='Delivery Requested',
-        tracking=True,
-        help='Requested final delivery date to customer - original baseline'
-    )
-    delivery_current = fields.Date(
-        string='Delivery Current',
-        tracking=True,
-        help='Current planned delivery date - working value'
-    )
-    delivery_actual = fields.Date(
-        string='Delivery Actual',
-        readonly=True,
-        tracking=True,
-        help='Actual delivery date to customer'
-    )
-    
-    # ============================================================
+    # =========================================================================
     # MILESTONE DATE METHODS
-    # ============================================================
+    # =========================================================================
     
     def get_milestone_date(self, milestone_code, prefer='best'):
         """
@@ -187,37 +101,9 @@ class DmDealMilestones(models.Model):
         else:  # 'best'
             return actual or current or requested
     
-    # ============================================================
-    # COMPUTED METHODS
-    # ============================================================
-    
-    @api.depends('rts_current', 'rts_requested', 'line_ids.product_id.total_production_cycle', 'production_start_requested')
-    def _compute_production_start_calculated(self):
-        """
-        Calculate production start date from RTS minus production cycle.
-        
-        Note: This is a display-only computed field. The actual population of
-        production_start_current happens via onchange or explicit writes.
-        """
-        for deal in self:
-            if deal.production_start_requested:
-                deal.production_start_calculated = deal.production_start_requested
-                continue
-            
-            rts_date = deal.rts_current or deal.rts_requested
-            
-            if rts_date and deal.line_ids:
-                max_cycle = max(
-                    (line.product_id.total_production_cycle or 21)
-                    for line in deal.line_ids
-                )
-                deal.production_start_calculated = rts_date - timedelta(days=max_cycle)
-            else:
-                deal.production_start_calculated = False
-    
-    # ============================================================
+    # =========================================================================
     # BI-DIRECTIONAL MILESTONE SYNC
-    # ============================================================
+    # =========================================================================
     
     def _sync_milestone_dates(self, vals):
         """
@@ -274,9 +160,9 @@ class DmDealMilestones(models.Model):
         
         return warnings
     
-    # ============================================================
+    # =========================================================================
     # ONCHANGE METHODS - REQUESTED → CURRENT
-    # ============================================================
+    # =========================================================================
     
     @api.onchange('production_start_requested')
     def _onchange_production_start_requested(self):
@@ -302,7 +188,7 @@ class DmDealMilestones(models.Model):
         if self.etd_requested and not self.etd_current:
             self.etd_current = self.etd_requested
     
-    @api.onchange('eta_requested')  
+    @api.onchange('eta_requested')
     def _onchange_eta_requested(self):
         """Sync requested → current"""
         if self.eta_requested and not self.eta_current:
@@ -314,9 +200,9 @@ class DmDealMilestones(models.Model):
         if self.delivery_requested and not self.delivery_current:
             self.delivery_current = self.delivery_requested
     
-    # ============================================================
+    # =========================================================================
     # ONCHANGE METHODS - CURRENT → REQUESTED (REVERSE)
-    # ============================================================
+    # =========================================================================
     
     @api.onchange('production_start_current')
     def _onchange_production_start_current(self):
@@ -366,9 +252,9 @@ class DmDealMilestones(models.Model):
         if self.delivery_current and not self.delivery_requested:
             self.delivery_requested = self.delivery_current
     
-    # ============================================================
+    # =========================================================================
     # CRUD OVERRIDES
-    # ============================================================
+    # =========================================================================
     
     @api.model
     def create(self, vals):

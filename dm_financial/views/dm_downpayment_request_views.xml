@@ -1,143 +1,280 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    
-    <!-- Tree View -->
-    <record id="view_dm_downpayment_request_tree" model="ir.ui.view">
+
+    <!-- ============================================================ -->
+    <!-- TREE VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="dm_downpayment_request_view_tree" model="ir.ui.view">
         <field name="name">dm.downpayment.request.tree</field>
         <field name="model">dm.downpayment.request</field>
         <field name="arch" type="xml">
-            <tree string="Downpayment Requests" 
+            <tree string="Downpayment Requests"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'pending' and not is_allocated"
+                  decoration-primary="state == 'pending' and is_allocated"
                   decoration-success="state == 'paid'"
-                  decoration-warning="state == 'partial'"
-                  decoration-danger="state == 'overdue'"
-                  decoration-muted="state == 'cancelled'">
-                <field name="name"/>
-                <field name="request_type"/>
+                  decoration-muted="state == 'cancelled'"
+                  multi_edit="1">
+                
+                <!-- Hidden fields for decorations -->
+                <field name="is_allocated" column_invisible="1"/>
+                
+                <field name="name" decoration-bf="1"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'pending'"
+                       decoration-success="state == 'paid'"
+                       decoration-muted="state == 'cancelled'"/>
                 <field name="deal_id"/>
-                <field name="customer_po_number"/>
+                <field name="subdeal_id" optional="hide"/>
                 <field name="partner_id"/>
-                <field name="percentage" widget="percentage"/>
-                <field name="amount_requested" widget="monetary"/>
-                <field name="amount_received" widget="monetary"/>
-                <field name="amount_due" widget="monetary"/>
+                <field name="milestone_id"/>
+                <field name="payment_type" widget="badge"
+                       decoration-success="payment_type == 'inbound'"
+                       decoration-info="payment_type == 'outbound'"/>
                 <field name="due_date"/>
-                <field name="days_overdue" invisible="days_overdue == 0"/>
-                <field name="state" widget="badge" decoration-success="state == 'paid'" 
-                       decoration-warning="state in ['partial', 'overdue']"
-                       decoration-danger="state == 'overdue'"/>
-                <field name="currency_id" invisible="1"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_requested" sum="Total Requested"/>
+                <field name="amount_received" sum="Total Received" optional="show"/>
+                <field name="amount_remaining" sum="Total Remaining" optional="show"/>
+                
+                <!-- Payment linkage columns -->
+                <field name="payment_id" optional="show"/>
+                <field name="payment_state" widget="badge" optional="show"
+                       decoration-info="payment_state == 'draft'"
+                       decoration-success="payment_state == 'posted'"
+                       decoration-muted="payment_state == 'cancelled'"/>
+                <field name="payment_date" optional="hide"/>
+                
+                <field name="company_id" column_invisible="1"/>
             </tree>
         </field>
     </record>
-    
-    <!-- Form View -->
-    <record id="view_dm_downpayment_request_form" model="ir.ui.view">
+
+    <!-- ============================================================ -->
+    <!-- FORM VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="dm_downpayment_request_view_form" model="ir.ui.view">
         <field name="name">dm.downpayment.request.form</field>
         <field name="model">dm.downpayment.request</field>
         <field name="arch" type="xml">
             <form string="Downpayment Request">
+                <!-- Hidden fields for modifiers -->
+                <field name="is_allocated" invisible="1"/>
+                <field name="payment_state" invisible="1"/>
+                <field name="payment_id" invisible="1"/>
+                <field name="percentage" invisible="1"/>
+                <field name="invoice_ids" invisible="1"/>
+                
                 <header>
-                    <button name="action_send" type="object" string="Send Request" 
-                            class="oe_highlight" invisible="state != 'draft'"/>
-                    <button name="action_register_payment" type="object" string="Register Payment"
-                            class="oe_highlight" invisible="state not in ['sent', 'partial']"/>
-                    <button name="action_mark_paid" type="object" string="Mark as Paid"
-                            invisible="state != 'partial' or amount_due &gt; 0.01"/>
-                    <button name="action_send_reminder" type="object" string="Send Reminder"
-                            invisible="state not in ['sent', 'partial', 'overdue']"/>
-                    <button name="action_cancel" type="object" string="Cancel"
-                            invisible="state in ['paid', 'cancelled']"/>
-                    <button name="action_reset_draft" type="object" string="Reset to Draft"
-                            invisible="state not in ['cancelled']"/>
-                    <field name="state" widget="statusbar" 
-                           statusbar_visible="draft,sent,paid"/>
-                </header>
-                <sheet>
-                    <widget name="web_ribbon" title="Overdue" bg_color="bg-danger" 
-                            invisible="state != 'overdue'"/>
-                    <widget name="web_ribbon" title="Paid" bg_color="bg-success" 
-                            invisible="state != 'paid'"/>
-                    <widget name="web_ribbon" title="Cancelled" bg_color="bg-danger" 
+                    <!-- State transition buttons -->
+                    <button name="action_confirm"
+                            string="Confirm"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    
+                    <!-- Payment actions - only when pending and not allocated -->
+                    <button name="action_create_payment_wizard"
+                            string="Create Payment"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'pending' or is_allocated"/>
+                    
+                    <!-- View payment - when allocated -->
+                    <button name="action_view_payment"
+                            string="View Payment"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not is_allocated"
+                            icon="fa-money"/>
+                    
+                    <!-- Deallocate - only when allocated to draft payment -->
+                    <button name="action_deallocate"
+                            string="Deallocate"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not is_allocated or payment_state != 'draft'"
+                            confirm="Remove this DP request from the linked payment?"/>
+                    
+                    <!-- Cancel -->
+                    <button name="action_cancel"
+                            string="Cancel"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('draft', 'pending') or is_allocated"/>
+                    
+                    <!-- Reset to draft -->
+                    <button name="action_reset_draft"
+                            string="Reset to Draft"
+                            type="object"
                             invisible="state != 'cancelled'"/>
                     
+                    <!-- Status bar -->
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,pending,paid"/>
+                </header>
+
+                <sheet>
+                    <!-- Smart buttons -->
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_invoices" type="object" 
-                                class="oe_stat_button" icon="fa-file-text-o"
-                                invisible="invoice_count == 0">
-                            <field name="invoice_count" widget="statinfo" string="Invoices"/>
+                        <button name="action_view_deal"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-handshake-o"
+                                invisible="not deal_id">
+                            <field name="deal_id" widget="statinfo" string="Deal"/>
+                        </button>
+                        
+                        <button name="action_view_payment"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-money"
+                                invisible="not is_allocated">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="payment_name"/>
+                                </span>
+                                <span class="o_stat_text">Payment</span>
+                            </div>
                         </button>
                     </div>
-                    
+
+                    <!-- Title -->
                     <div class="oe_title">
-                        <label for="name" string="Request Number"/>
                         <h1>
                             <field name="name" readonly="1"/>
                         </h1>
-                        <label for="request_type" string="Type"/>
                         <h2>
-                            <field name="request_type" readonly="state != 'draft'"/>
+                            <field name="partner_id" 
+                                   readonly="is_allocated"
+                                   options="{'no_create': True}"/>
                         </h2>
                     </div>
+
+                    <!-- Allocation warning banner -->
+                    <div class="alert alert-info" role="alert"
+                         invisible="not is_allocated or payment_state != 'draft'">
+                        <strong>Allocated to draft payment.</strong>
+                        This DP request is linked to payment 
+                        <field name="payment_name" class="fw-bold"/>. 
+                        Critical fields are locked. Post the payment to mark this DP as paid.
+                    </div>
                     
+                    <div class="alert alert-success" role="alert"
+                         invisible="not is_allocated or payment_state != 'posted'">
+                        <strong>Payment posted.</strong>
+                        This DP request has been paid via 
+                        <field name="payment_name" class="fw-bold"/>
+                        on <field name="payment_date"/>.
+                    </div>
+
                     <group>
-                        <group string="Deal Information">
-                            <field name="deal_id" readonly="state != 'draft'"
+                        <!-- Left column: Business references -->
+                        <group string="Reference">
+                            <field name="deal_id"
+                                   readonly="is_allocated"
+                                   options="{'no_create': True}"
+                                   required="1"/>
+                            <field name="subdeal_id"
+                                   readonly="is_allocated"
                                    options="{'no_create': True}"/>
-                            <field name="customer_po_number"/>
-                            <field name="partner_id"/>
-                            <field name="deal_total" widget="monetary"/>
-                            <field name="currency_id" invisible="1"/>
+                            <field name="milestone_id"
+                                   readonly="is_allocated"
+                                   options="{'no_create': True}"/>
+                            <field name="payment_term_id"
+                                   readonly="1"
+                                   invisible="not payment_term_id"/>
                         </group>
-                        <group string="Payment Information">
-                            <field name="percentage" readonly="state not in ['draft']"/>
-                            <field name="amount_requested" widget="monetary"/>
-                            <field name="amount_received" widget="monetary" 
-                                   readonly="state not in ['draft', 'sent', 'partial']"/>
-                            <field name="amount_due" widget="monetary" force_save="1"/>
-                            <label for="days_overdue" invisible="days_overdue == 0"/>
-                            <div invisible="days_overdue == 0">
-                                <field name="days_overdue" class="text-danger"/> days overdue
+
+                        <!-- Right column: Classification -->
+                        <group string="Classification">
+                            <field name="payment_type"
+                                   readonly="is_allocated"
+                                   widget="radio"
+                                   options="{'horizontal': true}"/>
+                            <field name="currency_id"
+                                   readonly="is_allocated"
+                                   groups="base.group_multi_currency"/>
+                            <field name="due_date"
+                                   readonly="is_allocated"/>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"
+                                   readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <!-- Amounts -->
+                        <group string="Amounts">
+                            <field name="amount_requested"
+                                   readonly="is_allocated"
+                                   class="oe_inline"/>
+                            <field name="percentage"
+                                   readonly="is_allocated"
+                                   invisible="percentage == 0"/>
+                            <label for="amount_received"/>
+                            <div class="o_row">
+                                <field name="amount_received" class="oe_inline"/>
+                                <span class="text-muted" invisible="not is_allocated">
+                                    (from linked payment)
+                                </span>
                             </div>
+                            <field name="amount_remaining"
+                                   decoration-danger="amount_remaining &gt; 0"
+                                   decoration-success="amount_remaining &lt;= 0"/>
+                        </group>
+
+                        <!-- Payment linkage - only show when allocated -->
+                        <group string="Payment" invisible="not is_allocated">
+                            <field name="payment_id" readonly="1"/>
+                            <field name="payment_state" widget="badge"
+                                   decoration-info="payment_state == 'draft'"
+                                   decoration-success="payment_state == 'posted'"
+                                   decoration-muted="payment_state == 'cancelled'"/>
+                            <field name="payment_date" readonly="1"/>
                         </group>
                     </group>
-                    
+
                     <group>
-                        <group string="Due Date Calculation">
-                            <field name="milestone_trigger" readonly="state != 'draft'"/>
-                            <field name="milestone_days" 
-                                   invisible="milestone_trigger not in ['days_before_eta', 'days_after_eta', 'days_before_rts']"
-                                   readonly="state != 'draft'"/>
-                            <field name="due_date" readonly="milestone_trigger != 'custom' or state != 'draft'"/>
-                        </group>
-                        <group string="Payment Details">
-                            <field name="payment_date" readonly="state not in ['draft', 'sent', 'partial']"/>
-                            <field name="payment_reference" readonly="state not in ['draft', 'sent', 'partial']"/>
-                            <field name="bank_account_id" readonly="state != 'draft'"
-                                   options="{'no_create': True}"/>
+                        <!-- Order references -->
+                        <group string="Related Orders">
+                            <field name="sale_order_id"
+                                   readonly="1"
+                                   invisible="payment_type != 'inbound'"/>
+                            <field name="purchase_order_id"
+                                   readonly="1"
+                                   invisible="payment_type != 'outbound'"/>
                         </group>
                     </group>
-                    
-                    <group string="Payment Terms">
-                        <field name="payment_term_id" readonly="1"/>
-                        <field name="payment_term_line_id" readonly="1"
-                               invisible="not payment_term_line_id"/>
-                    </group>
-                    
-                    <separator string="Internal Notes"/>
-                    <field name="notes" nolabel="1"/>
-                    
-                    <separator string="Applied to Invoices" invisible="invoice_count == 0"/>
-                    <field name="invoice_ids" nolabel="1" invisible="invoice_count == 0">
-                        <tree>
-                            <field name="name"/>
-                            <field name="invoice_date"/>
-                            <field name="partner_id"/>
-                            <field name="amount_total" widget="monetary"/>
-                            <field name="amount_residual" widget="monetary"/>
-                            <field name="state"/>
-                        </tree>
-                    </field>
+
+                    <notebook>
+                        <!-- Notes tab -->
+                        <page string="Notes" name="notes">
+                            <field name="notes"
+                                   placeholder="Add any notes or comments here..."/>
+                        </page>
+
+                        <!-- Applied invoices tab -->
+                        <page string="Applied to Invoices" name="invoices"
+                              invisible="not invoice_ids">
+                            <field name="invoice_ids" readonly="1">
+                                <tree>
+                                    <field name="name"/>
+                                    <field name="partner_id"/>
+                                    <field name="invoice_date"/>
+                                    <field name="amount_total"/>
+                                    <field name="payment_state" widget="badge"/>
+                                    <field name="state" widget="badge"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
+
+                <!-- Chatter -->
                 <div class="oe_chatter">
                     <field name="message_follower_ids"/>
                     <field name="activity_ids"/>
@@ -146,152 +283,183 @@
             </form>
         </field>
     </record>
-    
-    <!-- Kanban View -->
-    <record id="view_dm_downpayment_request_kanban" model="ir.ui.view">
-        <field name="name">dm.downpayment.request.kanban</field>
-        <field name="model">dm.downpayment.request</field>
-        <field name="arch" type="xml">
-            <kanban default_group_by="state">
-                <field name="name"/>
-                <field name="request_type"/>
-                <field name="partner_id"/>
-                <field name="amount_requested"/>
-                <field name="amount_due"/>
-                <field name="due_date"/>
-                <field name="state"/>
-                <field name="currency_id"/>
-                <field name="days_overdue"/>
-                <templates>
-                    <t t-name="kanban-box">
-                        <div class="oe_kanban_card oe_kanban_global_click">
-                            <div class="oe_kanban_content">
-                                <div class="o_kanban_record_top">
-                                    <div class="o_kanban_record_headings">
-                                        <strong class="o_kanban_record_title">
-                                            <field name="name"/>
-                                        </strong>
-                                    </div>
-                                    <field name="request_type" widget="label_selection" 
-                                           options="{'classes': {'customer': 'success', 'supplier': 'warning'}}"/>
-                                </div>
-                                <div class="o_kanban_record_body">
-                                    <div>
-                                        <field name="partner_id"/>
-                                    </div>
-                                    <div>
-                                        <field name="deal_id"/>
-                                    </div>
-                                    <div class="text-muted">
-                                        Due: <field name="due_date"/>
-                                    </div>
-                                </div>
-                                <div class="o_kanban_record_bottom">
-                                    <div class="oe_kanban_bottom_left">
-                                        <field name="percentage" widget="percentage"/>
-                                    </div>
-                                    <div class="oe_kanban_bottom_right">
-                                        <strong>
-                                            <field name="amount_due" widget="monetary"/>
-                                        </strong>
-                                    </div>
-                                </div>
-                                <div t-if="record.days_overdue.raw_value > 0" 
-                                     class="o_kanban_record_bottom">
-                                    <span class="badge badge-danger">
-                                        <t t-esc="record.days_overdue.value"/> days overdue
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </t>
-                </templates>
-            </kanban>
-        </field>
-    </record>
-    
-    <!-- Search View -->
-    <record id="view_dm_downpayment_request_search" model="ir.ui.view">
+
+    <!-- ============================================================ -->
+    <!-- SEARCH VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="dm_downpayment_request_view_search" model="ir.ui.view">
         <field name="name">dm.downpayment.request.search</field>
         <field name="model">dm.downpayment.request</field>
         <field name="arch" type="xml">
             <search string="Search Downpayment Requests">
+                <!-- Search fields -->
                 <field name="name"/>
-                <field name="deal_id"/>
                 <field name="partner_id"/>
-                <field name="customer_po_number"/>
-                <separator/>
-                <filter name="customer" string="Customer" domain="[('request_type', '=', 'customer')]"/>
-                <filter name="supplier" string="Supplier" domain="[('request_type', '=', 'supplier')]"/>
+                <field name="deal_id"/>
+                <field name="subdeal_id"/>
+                <field name="milestone_id"/>
+                <field name="payment_id"/>
+                
                 <separator/>
                 
-				    <!-- NEW: Active filter (default when coming from deal) -->
-				<filter name="active" string="Active" 
-						domain="[('state', '!=', 'cancelled')]"/>
-				<filter name="cancelled_only" string="Cancelled Only" 
-						domain="[('state', '=', 'cancelled')]"/>
-				<separator/>
-				
-				<filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
-                <filter name="sent" string="Sent" domain="[('state', '=', 'sent')]"/>
-                <filter name="partial" string="Partially Paid" domain="[('state', '=', 'partial')]"/>
-                <filter name="paid" string="Paid" domain="[('state', '=', 'paid')]"/>
-                <filter name="overdue" string="Overdue" domain="[('state', '=', 'overdue')]"/>
+                <!-- State filters -->
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Pending" name="filter_pending"
+                        domain="[('state', '=', 'pending')]"/>
+                <filter string="Paid" name="filter_paid"
+                        domain="[('state', '=', 'paid')]"/>
+                <filter string="Cancelled" name="filter_cancelled"
+                        domain="[('state', '=', 'cancelled')]"/>
+                
                 <separator/>
-                <filter name="due_this_week" string="Due This Week" 
-                        domain="[('due_date', '&gt;=', context_today().strftime('%Y-%m-%d')),
-                                ('due_date', '&lt;', (context_today() + datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
-                <filter name="due_this_month" string="Due This Month"
-                        domain="[('due_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                
+                <!-- Type filters -->
+                <filter string="Customer (Inbound)" name="filter_customer"
+                        domain="[('payment_type', '=', 'inbound')]"/>
+                <filter string="Vendor (Outbound)" name="filter_vendor"
+                        domain="[('payment_type', '=', 'outbound')]"/>
+                
                 <separator/>
+                
+                <!-- Allocation filters -->
+                <filter string="Unallocated" name="filter_unallocated"
+                        domain="[('is_allocated', '=', False), ('state', '=', 'pending')]"/>
+                <filter string="Allocated - Draft Payment" name="filter_allocated_draft"
+                        domain="[('is_allocated', '=', True), ('payment_state', '=', 'draft')]"/>
+                <filter string="Allocated - Posted Payment" name="filter_allocated_posted"
+                        domain="[('is_allocated', '=', True), ('payment_state', '=', 'posted')]"/>
+                
+                <separator/>
+                
+                <!-- Date filters - simplified for Odoo 17 -->
+                <filter string="Overdue" name="filter_overdue"
+                        domain="[('due_date', '&lt;', context_today().strftime('%Y-%m-%d')), ('state', '=', 'pending')]"/>
+                <filter string="Due Today" name="filter_due_today"
+                        domain="[('due_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                
+                <separator/>
+                
+                <!-- Group by -->
                 <group expand="0" string="Group By">
-                    <filter name="group_type" string="Type" context="{'group_by': 'request_type'}"/>
-                    <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
-                    <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
-                    <filter name="group_deal" string="Deal" context="{'group_by': 'deal_id'}"/>
-                    <filter name="group_due_date" string="Due Date" context="{'group_by': 'due_date:month'}"/>
-					<filter name="group_status_category" string="Status (Active/Cancelled)" 
-							context="{'group_by': 'status_category'}"/>
-					<filter name="group_type" string="Type" context="{'group_by': 'request_type'}"/>
-					<filter name="group_state" string="State" context="{'group_by': 'state'}"/>					
+                    <filter string="State" name="groupby_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="Partner" name="groupby_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="Deal" name="groupby_deal"
+                            context="{'group_by': 'deal_id'}"/>
+                    <filter string="Subdeal" name="groupby_subdeal"
+                            context="{'group_by': 'subdeal_id'}"/>
+                    <filter string="Milestone" name="groupby_milestone"
+                            context="{'group_by': 'milestone_id'}"/>
+                    <filter string="Payment Type" name="groupby_payment_type"
+                            context="{'group_by': 'payment_type'}"/>
+                    <filter string="Payment" name="groupby_payment"
+                            context="{'group_by': 'payment_id'}"/>
+                    <filter string="Due Date" name="groupby_due_date"
+                            context="{'group_by': 'due_date:month'}"/>
+                    <filter string="Payment Status" name="groupby_payment_state"
+                            context="{'group_by': 'payment_state'}"/>
                 </group>
             </search>
         </field>
     </record>
-    
-    <!-- Actions -->
-	<record id="action_dm_downpayment_request" model="ir.actions.act_window">
-		<field name="name">Downpayment Requests</field>
-		<field name="res_model">dm.downpayment.request</field>
-		<field name="view_mode">tree,kanban,form</field>
-		<field name="search_view_id" ref="view_dm_downpayment_request_search"/>
-		<field name="context">{
-			'search_default_due_this_month': 1,
-			'group_by': 'status_category'
-		}</field>  <!-- ← Default grouping -->
-		<field name="help" type="html">
-			<p class="o_view_nocontent_smiling_face">
-				Create a Downpayment Request
-			</p>
-		</field>
-	</record>
-    
-    <record id="action_dm_downpayment_request_customer" model="ir.actions.act_window">
+
+    <!-- ============================================================ -->
+    <!-- SERVER ACTION: Bulk Create Payment -->
+    <!-- ============================================================ -->
+
+    <record id="action_dp_request_create_payment" model="ir.actions.server">
+        <field name="name">Create Payment</field>
+        <field name="model_id" ref="model_dm_downpayment_request"/>
+        <field name="binding_model_id" ref="model_dm_downpayment_request"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = records.action_create_payment_wizard()
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- WINDOW ACTIONS -->
+    <!-- ============================================================ -->
+
+    <!-- Main action - all DP requests -->
+    <record id="dm_downpayment_request_action" model="ir.actions.act_window">
+        <field name="name">Downpayment Requests</field>
+        <field name="res_model">dm.downpayment.request</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="dm_downpayment_request_view_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No downpayment requests found
+            </p>
+            <p>
+                Downpayment requests are created automatically from payment terms
+                when deals or subdeals are confirmed, or can be created manually.
+            </p>
+        </field>
+    </record>
+
+    <!-- Customer DP requests -->
+    <record id="dm_downpayment_request_action_customer" model="ir.actions.act_window">
         <field name="name">Customer Downpayments</field>
         <field name="res_model">dm.downpayment.request</field>
-        <field name="view_mode">tree,kanban,form</field>
-        <field name="search_view_id" ref="view_dm_downpayment_request_search"/>
-        <field name="domain">[('request_type', '=', 'customer')]</field>
-        <field name="context">{'search_default_due_this_month': 1, 'default_request_type': 'customer'}</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="dm_downpayment_request_view_search"/>
+        <field name="domain">[('payment_type', '=', 'inbound')]</field>
+        <field name="context">{'default_payment_type': 'inbound', 'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No customer downpayment requests
+            </p>
+            <p>
+                Customer downpayments are receivables expected from customers
+                based on milestone payment terms.
+            </p>
+        </field>
     </record>
-    
-    <record id="action_dm_downpayment_request_supplier" model="ir.actions.act_window">
-        <field name="name">Supplier Downpayments</field>
+
+    <!-- Vendor DP requests -->
+    <record id="dm_downpayment_request_action_vendor" model="ir.actions.act_window">
+        <field name="name">Vendor Downpayments</field>
         <field name="res_model">dm.downpayment.request</field>
-        <field name="view_mode">tree,kanban,form</field>
-        <field name="search_view_id" ref="view_dm_downpayment_request_search"/>
-        <field name="domain">[('request_type', '=', 'supplier')]</field>
-        <field name="context">{'search_default_due_this_month': 1, 'default_request_type': 'supplier'}</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="dm_downpayment_request_view_search"/>
+        <field name="domain">[('payment_type', '=', 'outbound')]</field>
+        <field name="context">{'default_payment_type': 'outbound', 'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No vendor downpayment requests
+            </p>
+            <p>
+                Vendor downpayments are payables due to suppliers
+                based on milestone payment terms.
+            </p>
+        </field>
     </record>
-    
+
+    <!-- Unallocated pending - quick access -->
+    <record id="dm_downpayment_request_action_unallocated" model="ir.actions.act_window">
+        <field name="name">Pending Allocation</field>
+        <field name="res_model">dm.downpayment.request</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="dm_downpayment_request_view_search"/>
+        <field name="domain">[('state', '=', 'pending'), ('is_allocated', '=', False)]</field>
+        <field name="context">{'search_default_groupby_partner': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                All pending requests are allocated!
+            </p>
+            <p>
+                This view shows pending DP requests that are not yet
+                linked to a payment document. Select multiple requests
+                and use Actions → Create Payment to bulk create payments.
+            </p>
+        </field>
+    </record>
+
 </odoo>

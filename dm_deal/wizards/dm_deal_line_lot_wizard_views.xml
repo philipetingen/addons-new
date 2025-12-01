@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ========================================================================
+         LOT MANAGEMENT WIZARD - FORM VIEW
+         ======================================================================== -->
+    
+    <record id="view_dm_deal_line_lot_wizard_form" model="ir.ui.view">
+        <field name="name">dm.deal.line.lot.wizard.form</field>
+        <field name="model">dm.deal.line.lot.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Manage Production Lots">
+                <header>
+                    <field name="allocation_status" invisible="1"/>
+                    <field name="quantity_matches" invisible="1"/>
+                    
+                    <!-- Status indicator -->
+                    <div class="alert alert-success" role="alert" 
+                         invisible="allocation_status != 'exact'"
+                         style="margin: 0;">
+                        <strong>✓ Allocation Complete:</strong> All quantity allocated to lots
+                    </div>
+                    
+                    <div class="alert alert-warning" role="alert" 
+                         invisible="allocation_status != 'under'"
+                         style="margin: 0;">
+                        <strong>⚠ Under-allocated:</strong> <field name="remaining_quantity" readonly="1"/> packages remaining
+                    </div>
+                    
+                    <div class="alert alert-danger" role="alert" 
+                         invisible="allocation_status != 'over'"
+                         style="margin: 0;">
+                        <strong>✗ Over-allocated:</strong> Total exceeds target by <field name="remaining_quantity" readonly="1"/> packages
+                    </div>
+                </header>
+                
+                <sheet>
+                    <!-- Header Information -->
+                    <group>
+                        <group string="Product">
+                            <field name="deal_line_id" readonly="1"/>
+                            <field name="product_id" readonly="1"/>
+                            <field name="product_packaging_id" readonly="1"/>
+                        </group>
+                        
+                        <group string="Quantity Allocation">
+                            <field name="quantity_target" readonly="1" 
+                                   string="Target Quantity"
+                                   class="oe_inline"
+                                   help="Total quantity to allocate across lots"/>
+                            <field name="total_quantity" readonly="1" 
+                                   string="Total Allocated"
+                                   class="oe_inline"
+                                   decoration-success="quantity_matches"
+                                   decoration-danger="not quantity_matches"/>
+                            <field name="remaining_quantity" readonly="1" 
+                                   string="Remaining"
+                                   class="oe_inline"
+                                   decoration-warning="remaining_quantity &gt; 0.001"
+                                   decoration-danger="remaining_quantity &lt; -0.001"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Action Buttons -->
+                    <div class="oe_button_box" style="margin-bottom: 16px;">
+                        <button name="action_add_lot" 
+                                type="object" 
+                                string="Add Lot" 
+                                class="btn-primary"
+                                icon="fa-plus"
+                                help="Add a new lot line with remaining quantity"/>
+                    </div>
+                    
+                    <!-- Lot Lines -->
+                    <field name="lot_line_ids" nolabel="1">
+                        <tree editable="bottom" 
+                              decoration-danger="production_date and expiry_date and expiry_date &lt; production_date">
+                            <field name="sequence" widget="handle"/>
+                            <field name="lot_number" 
+                                   placeholder="e.g. ABC123456"
+                                   required="1"/>
+                            <field name="quantity" 
+                                   sum="Total"
+                                   required="1"/>
+                            <field name="production_date" 
+                                   required="1"/>
+                            <field name="expiry_date"/>
+                            <field name="notes" optional="show"/>
+                            <field name="lot_id" invisible="1"/>
+                        </tree>
+                    </field>
+                    
+                    <!-- Help Text -->
+                    <div class="alert alert-info" role="alert" style="margin-top: 16px;">
+                        <p class="mb-0">
+                            <strong>ℹ️ How to Use:</strong><br/>
+                            <ul>
+                                <li><strong>Edit quantities:</strong> Adjust quantities to split shipment across multiple lots</li>
+                                <li><strong>Add lot:</strong> Click "Add Lot" button to allocate remaining quantity</li>
+                                <li><strong>Remove lot:</strong> Click the trash icon to remove a lot line</li>
+                                <li><strong>Save:</strong> Click "Save" when total allocated equals target quantity</li>
+                            </ul>
+                            <strong>Note:</strong> Expiry date auto-calculates from production date + product shelf life
+                        </p>
+                    </div>
+                </sheet>
+                
+                <footer>
+                    <button name="action_save_lots" 
+                            type="object" 
+                            string="Save" 
+                            class="btn-primary"
+                            data-hotkey="s"/>
+                    <button name="action_cancel" 
+                            type="object" 
+                            string="Cancel" 
+                            class="btn-secondary"
+                            data-hotkey="z"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    
+    
+    <!-- ========================================================================
+         LOT WIZARD ACTION
+         ======================================================================== -->
+    
+    <record id="action_dm_deal_line_lot_wizard" model="ir.actions.act_window">
+        <field name="name">Manage Production Lots</field>
+        <field name="res_model">dm.deal.line.lot.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal_line"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+</odoo>

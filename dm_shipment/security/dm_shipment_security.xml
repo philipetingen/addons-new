@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Milestone Administrator Group -->
+    <record id="group_milestone_admin" model="res.groups">
+        <field name="name">Milestone Administrator</field>
+        <field name="category_id" ref="base.module_category_hidden"/>
+        <field name="comment">
+            Can edit locked milestone dates on deals/subdeals allocated to shipments.
+            Can edit actual milestone dates on shipments.
+            Can reschedule shipment milestones affecting multiple deals.
+        </field>
+    </record>
+    
+    <!-- Sales Manager inherits Milestone Admin -->
+    <record id="sales_team.group_sale_manager" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_milestone_admin'))]"/>
+    </record>
+    
+</odoo>

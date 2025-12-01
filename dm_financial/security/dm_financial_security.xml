@@ -92,13 +92,15 @@
             <field name="perm_unlink" eval="True"/>
         </record>
         
-        <!-- Cash Flow: Company-based access -->
+        <!-- Cash Flow: Company-based access - DISABLED Phase 1 -->
+        <!--
         <record id="dm_cash_flow_company_rule" model="ir.rule">
             <field name="name">Cash Flow: Company Access</field>
             <field name="model_id" ref="model_dm_cash_flow"/>
             <field name="domain_force">[('deal_id.company_id', 'in', company_ids)]</field>
             <field name="groups" eval="[(4, ref('group_dm_financial_user'))]"/>
         </record>
+        -->
         
         <!-- Multi-company Rules -->
         <record id="dm_downpayment_multi_company_rule" model="ir.rule">

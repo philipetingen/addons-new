@@ -1,691 +1,572 @@
-from odoo import models, fields, api, _
+# -*- coding: utf-8 -*-
+"""
+DM Downpayment Request Model
+Milestone-based payment tracking linked to standard Odoo payments
+
+Payment Integration:
+- DP Requests are analytical/business documents
+- account.payment handles financial/accounting layer
+- M:1 relationship: multiple DPs can link to one Payment
+- State driven by payment posting (pending → paid when payment posted)
+"""
+
+from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
-from datetime import timedelta
 import logging
 
 _logger = logging.getLogger(__name__)
 
 
 class DmDownpaymentRequest(models.Model):
-    """
-    Manages downpayment requests for both customers and suppliers.
-    Automatically created on deal confirmation with milestone-based due dates.
-    Typical percentages: 15-25% of deal value.
-    """
     _name = 'dm.downpayment.request'
     _description = 'Downpayment Request'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _order = 'due_date, name'
-    _rec_name = 'name'
-    
-    # Identification
+    _order = 'due_date, id'
+
+    # ============================================================
+    # CORE FIELDS
+    # ============================================================
+
     name = fields.Char(
-        'Request Number',
+        string='Reference',
         required=True,
         copy=False,
         readonly=True,
-        default='New',
-        tracking=True,
-        index=True
+        index=True,
+        default=lambda self: _('New')
     )
-    
-    # Type and Deal
-    request_type = fields.Selection([
-        ('customer', 'Customer (Receivable)'),
-        ('supplier', 'Supplier (Payable)')
-    ], string='Type', required=True, tracking=True, index=True)
-    
-    deal_id = fields.Many2one(
-        'dm.deal',
-        'Deal',
-        required=True,
-        ondelete='restrict',
-        tracking=True,
-        index=True
-    )
-    
-    # Link to payment milestone if created from milestone
-    milestone_id = fields.Many2one(
-        'dm.payment.milestone',
-        'Payment Milestone',
-        ondelete='set null',
-        help='Related payment milestone if created from milestone'
-    )
-    
-    # Related fields from deal
-    partner_id = fields.Many2one(
-        'res.partner',
-        'Partner',
-        compute='_compute_partner',
-        store=True,
-        readonly=True,
-        index=True
-    )
-    
-    currency_id = fields.Many2one(
-        'res.currency',
-        related='deal_id.currency_id',
-        store=True,
-        readonly=True
-    )
-    
-    customer_po_number = fields.Char(
-        related='deal_id.customer_po_number',
-        string='Customer PO#',
-        store=True,
-        readonly=True
-    )
-    
-    # Amounts
-    deal_total = fields.Monetary(
-        'Deal Total',
-        compute='_compute_deal_total',
-        store=True,
-        currency_field='currency_id'
-    )
-    
-    percentage = fields.Float(
-        'Downpayment %',
-        required=True,
-        tracking=True,
-        default=20.0,
-        help='Percentage of deal total (typically 15-25%)'
-    )
-    
-    amount_requested = fields.Monetary(
-        'Amount Requested',
-        compute='_compute_amount_requested',
-        store=True,
-        currency_field='currency_id',
-        tracking=True
-    )
-    
-    amount_received = fields.Monetary(
-        'Amount Received',
-        currency_field='currency_id',
-        tracking=True,
-        readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)]}
-    )
-    
-    amount_due = fields.Monetary(
-        'Amount Due',
-        compute='_compute_amount_due',
-        store=True,
-        currency_field='currency_id'
-    )
-    
-    # Milestone-based due date calculation
-    milestone_trigger = fields.Selection([
-        ('confirmed', 'Deal Confirmed'),
-        ('production_start', 'Production Start'),
-        ('rts', 'Ready to Ship'),
-        ('loading', 'Loading'),
-        ('etd', 'Departure (ETD)'),
-        ('eta', 'Arrival (ETA)'),
-        ('days_before_eta', 'X Days Before ETA'),
-        ('days_after_eta', 'X Days After ETA'),
-        ('days_before_rts', 'X Days Before RTS'),
-        ('custom', 'Custom Date')
-    ], string='Due Date Trigger', required=True, default='confirmed', tracking=True)
-    
-    milestone_days = fields.Integer(
-        'Days Offset',
-        default=0,
-        help='Number of days before/after milestone'
-    )
-    
-    due_date = fields.Date(
-        'Due Date',
-        required=True,
-        tracking=True,
-        compute='_compute_due_date',
-        store=True,
-        readonly=False
-    )
-    
-    payment_date = fields.Date(
-        'Payment Date',
-        tracking=True,
-        readonly=True,
-        states={'draft': [('readonly', False)], 'sent': [('readonly', False)], 'partial': [('readonly', False)]}
-    )
-    
-    # State
+
     state = fields.Selection([
         ('draft', 'Draft'),
-        ('sent', 'Sent'),
-        ('partial', 'Partially Paid'),
+        ('pending', 'Pending Payment'),
         ('paid', 'Paid'),
-        ('overdue', 'Overdue'),
-        ('cancelled', 'Cancelled')
-    ], string='State', default='draft', tracking=True, required=True, index=True)
-    
-    # Payment details
-    payment_reference = fields.Char(
-        'Payment Reference',
-        tracking=True,
-        help='Bank transfer reference or check number'
+        ('cancelled', 'Cancelled'),
+    ], string='Status', default='draft', tracking=True, copy=False, index=True)
+
+    notes = fields.Text(
+        string='Notes',
+        help='Additional notes or comments'
     )
-    
-    bank_account_id = fields.Many2one(
-        'res.partner.bank',
-        'Bank Account',
-        compute='_compute_bank_account',
-        store=True,
-        readonly=False,
-        help='Bank account for payment'
-    )
-    
-    # CAD Payment Term Integration
-    payment_term_id = fields.Many2one(
-        'account.payment.term',
-        'Payment Terms',
-        compute='_compute_payment_term',
-        store=True
-    )
-    
-    payment_term_line_id = fields.Many2one(
-        'account.payment.term.line',
-        'Payment Term Line',
-        help='Specific payment term line this DP relates to'
-    )
-    
-    # Notes and tracking
-    notes = fields.Text('Internal Notes')
-    
-    reminder_sent = fields.Boolean(
-        'Reminder Sent',
+
+    # ============================================================
+    # BUSINESS REFERENCES
+    # ============================================================
+
+    deal_id = fields.Many2one(
+        'dm.deal',
+        string='Deal',
+        required=True,
+        ondelete='cascade',
+        index=True,
         tracking=True
     )
-    
-    reminder_date = fields.Date(
-        'Last Reminder Date'
+
+    subdeal_id = fields.Many2one(
+        'dm.deal.subdeal',
+        string='Subdeal',
+        ondelete='cascade',
+        index=True,
+        help='Subdeal this downpayment belongs to'
     )
-    
-    days_overdue = fields.Integer(
-        'Days Overdue',
-        compute='_compute_days_overdue'
+
+    partner_id = fields.Many2one(
+        'res.partner',
+        string='Partner',
+        required=True,
+        index=True,
+        tracking=True
     )
-    
-    # Invoice application tracking
+
+    company_id = fields.Many2one(
+        'res.company',
+        string='Company',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True
+    )
+
+    # ============================================================
+    # MILESTONE REFERENCES
+    # ============================================================
+
+    payment_term_id = fields.Many2one(
+        'account.payment.term',
+        string='Payment Term',
+        help='Source payment term that generated this request'
+    )
+    milestone_id = fields.Many2one(
+        'dm.payment.milestone',
+        string='Milestone',
+        ondelete='set null',
+        index=True,
+        help='Payment milestone triggering this request'
+    )
+
+    # ============================================================
+    # ORDER REFERENCES
+    # ============================================================
+
+    sale_order_id = fields.Many2one(
+        'sale.order',
+        string='Sale Order',
+        ondelete='set null',
+        help='Related sale order for customer downpayments'
+    )
+
+    purchase_order_id = fields.Many2one(
+        'purchase.order',
+        string='Purchase Order',
+        ondelete='set null',
+        help='Related purchase order for vendor downpayments'
+    )
+
+    # ============================================================
+    # FINANCIAL FIELDS
+    # ============================================================
+
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        required=True,
+        default=lambda self: self.env.company.currency_id,
+        tracking=True
+    )
+
+    amount_requested = fields.Monetary(
+        string='Amount Requested',
+        required=True,
+        currency_field='currency_id',
+        tracking=True,
+        help='Total amount due for this downpayment request'
+    )
+
+    amount_received = fields.Monetary(
+        string='Amount Received',
+        currency_field='currency_id',
+        compute='_compute_amount_received',
+        store=True,
+        help='Amount received (from linked payment when allocated)'
+    )
+
+    amount_remaining = fields.Monetary(
+        string='Amount Remaining',
+        currency_field='currency_id',
+        compute='_compute_amount_remaining',
+        store=True,
+        help='Remaining amount to be paid'
+    )
+
+    percentage = fields.Float(
+        string='Percentage',
+        digits=(5, 2),
+        help='Percentage of deal/subdeal value'
+    )
+
+    due_date = fields.Date(
+        string='Due Date',
+        required=True,
+        tracking=True,
+        index=True
+    )
+
+    # ============================================================
+    # PAYMENT TYPE
+    # ============================================================
+
+    payment_type = fields.Selection([
+        ('inbound', 'Customer Payment'),
+        ('outbound', 'Vendor Payment'),
+    ], string='Payment Type', required=True, default='inbound', index=True)
+
+    is_customer_dp = fields.Boolean(
+        string='Is Customer DP',
+        compute='_compute_payment_type_flags',
+        store=True
+    )
+
+    is_vendor_dp = fields.Boolean(
+        string='Is Vendor DP',
+        compute='_compute_payment_type_flags',
+        store=True
+    )
+
+    # ============================================================
+    # PAYMENT LINKAGE
+    # ============================================================
+
+    payment_id = fields.Many2one(
+        'account.payment',
+        string='Payment',
+        ondelete='restrict',
+        index=True,
+        copy=False,
+        tracking=True,
+        help='Linked payment document'
+    )
+
+    payment_state = fields.Selection(
+        related='payment_id.state',
+        string='Payment Status',
+        store=True,
+        help='Status of linked payment'
+    )
+
+    payment_name = fields.Char(
+        related='payment_id.name',
+        string='Payment Reference',
+        store=True
+    )
+
+    payment_date = fields.Date(
+        related='payment_id.date',
+        string='Payment Date',
+        store=True
+    )
+
+    is_allocated = fields.Boolean(
+        string='Allocated to Payment',
+        compute='_compute_is_allocated',
+        store=True,
+        help='True if linked to a payment document'
+    )
+
+    # ============================================================
+    # INVOICE TRACKING (for reconciliation)
+    # ============================================================
+
     invoice_ids = fields.Many2many(
         'account.move',
-        'dm_dp_invoice_rel',
-        'dp_id',
+        'dm_downpayment_invoice_rel',
+        'downpayment_id',
         'invoice_id',
         string='Applied to Invoices',
-        help='Invoices where this downpayment is applied'
-    )
-    
-    invoice_count = fields.Integer(
-        'Invoice Count',
-        compute='_compute_invoice_count'
-    )
-    
-    # Journal entry reference (for direct accounting)
-    journal_entry_id = fields.Many2one(
-        'account.move',
-        'Journal Entry',
-        readonly=True,
-        help='Direct journal entry for this downpayment'
+        help='Invoices this downpayment has been applied to'
     )
 
-    status_category = fields.Selection([
-        ('active', 'Active'),
-        ('cancelled', 'Cancelled')
-    ], compute='_compute_status_category', store=True, string='Status Category')
+    # ============================================================
+    # COMPUTED METHODS
+    # ============================================================
 
-    @api.depends('state')
-    def _compute_status_category(self):
-        """Compute status category for grouping"""
-        for request in self:
-            request.status_category = 'cancelled' if request.state == 'cancelled' else 'active'
-    
-    @api.model
-    def create(self, vals):
-        """Generate sequence based on request type"""
-        if vals.get('name', 'New') == 'New':
-            if vals.get('request_type') == 'customer':
-                vals['name'] = self.env['ir.sequence'].next_by_code('dm.dp.customer') or 'DP-C-NEW'
-            else:
-                vals['name'] = self.env['ir.sequence'].next_by_code('dm.dp.supplier') or 'DP-S-NEW'
-        return super().create(vals)
-    
-    @api.depends('deal_id', 'request_type')
-    def _compute_partner(self):
-        """Compute partner based on request type"""
-        for request in self:
-            if request.deal_id:
-                if request.request_type == 'customer':
-                    request.partner_id = request.deal_id.customer_id
-                else:
-                    request.partner_id = request.deal_id.supplier_id
-            else:
-                request.partner_id = False
-    
-    @api.depends('deal_id', 'request_type')
-    def _compute_deal_total(self):
-        """Compute relevant deal total based on type"""
-        for request in self:
-            if request.deal_id:
-                if request.request_type == 'customer':
-                    # Check which field exists in the deal model
-                    if hasattr(request.deal_id, 'total_value'):
-                        request.deal_total = request.deal_id.total_value
-                    elif hasattr(request.deal_id, 'total_sale_amount'):
-                        request.deal_total = request.deal_id.total_sale_amount
-                    else:
-                        request.deal_total = 0.0
-                else:
-                    # For supplier
-                    if hasattr(request.deal_id, 'purchase_total'):
-                        request.deal_total = request.deal_id.purchase_total
-                    elif hasattr(request.deal_id, 'total_purchase_amount'):
-                        request.deal_total = request.deal_id.total_purchase_amount
-                    else:
-                        request.deal_total = 0.0
-            else:
-                request.deal_total = 0.0
-    
-    @api.depends('partner_id', 'request_type')
-    def _compute_bank_account(self):
-        """Get default bank account"""
-        for request in self:
-            if request.partner_id:
-                if request.request_type == 'customer':
-                    # Our bank account for receiving
-                    request.bank_account_id = self.env.company.partner_id.bank_ids[:1]
-                else:
-                    # Supplier's bank account for paying
-                    request.bank_account_id = request.partner_id.bank_ids[:1]
-            else:
-                request.bank_account_id = False
-    
-    @api.depends('deal_id', 'request_type')
-    def _compute_payment_term(self):
-        """Get payment term from deal based on type"""
-        for request in self:
-            if request.deal_id:
-                if request.request_type == 'customer':
-                    request.payment_term_id = request.deal_id.sale_payment_term_id
-                else:
-                    request.payment_term_id = request.deal_id.purchase_payment_term_id
-            else:
-                request.payment_term_id = False
-    
-    @api.depends('deal_total', 'percentage')
-    def _compute_amount_requested(self):
-        """Calculate requested amount from percentage"""
-        for request in self:
-            request.amount_requested = (request.deal_total * request.percentage) / 100.0
-    
-    @api.depends('amount_requested', 'amount_received')
-    def _compute_amount_due(self):
-        """Calculate amount still due"""
-        for request in self:
-            request.amount_due = max(0, request.amount_requested - request.amount_received)
-    
-    @api.depends('milestone_trigger', 'milestone_days', 'deal_id', 
-                 'deal_id.confirmation_date', 'deal_id.production_start_current',
-                 'deal_id.rts_current', 'deal_id.rts_actual',
-                 'deal_id.loading_current', 'deal_id.etd_current', 
-                 'deal_id.eta_current', 'deal_id.eta_actual')
-    def _compute_due_date(self):
-        """Calculate due date based on milestone and CAD terms"""
-        for request in self:
-            if not request.deal_id or request.milestone_trigger == 'custom':
-                if not request.due_date:
-                    request.due_date = fields.Date.today() + timedelta(days=30)
+    @api.depends('payment_type')
+    def _compute_payment_type_flags(self):
+        for rec in self:
+            rec.is_customer_dp = rec.payment_type == 'inbound'
+            rec.is_vendor_dp = rec.payment_type == 'outbound'
+
+    @api.depends('payment_id')
+    def _compute_is_allocated(self):
+        for rec in self:
+            rec.is_allocated = bool(rec.payment_id)
+
+    @api.depends('payment_id', 'payment_id.state', 'payment_id.amount', 'amount_requested')
+    def _compute_amount_received(self):
+        """
+        Compute amount received from linked payment.
+        When M:1 (multiple DPs → one payment), pro-rate by requested amounts.
+        When not allocated, amount_received = 0.
+        """
+        for rec in self:
+            if not rec.payment_id or rec.payment_id.state not in ('posted', 'reconciled'):
+                rec.amount_received = 0.0
                 continue
-            
-            base_date = False
-            
-            # Get base date from milestone with proper field checks
-            if request.milestone_trigger == 'confirmed':
-                if hasattr(request.deal_id, 'confirmation_date'):
-                    base_date = request.deal_id.confirmation_date or fields.Date.today()
-                else:
-                    base_date = fields.Date.today()
-            elif request.milestone_trigger == 'production_start':
-                if hasattr(request.deal_id, 'production_start_current'):
-                    base_date = request.deal_id.production_start_current
-            elif request.milestone_trigger == 'rts':
-                base_date = request.deal_id.rts_actual or request.deal_id.rts_current
-            elif request.milestone_trigger == 'loading':
-                if hasattr(request.deal_id, 'loading_current'):
-                    base_date = request.deal_id.loading_current
-            elif request.milestone_trigger == 'etd':
-                if hasattr(request.deal_id, 'etd_current'):
-                    base_date = request.deal_id.etd_current
-            elif request.milestone_trigger == 'eta':
-                base_date = request.deal_id.eta_actual or request.deal_id.eta_current
-            elif request.milestone_trigger in ['days_before_eta', 'days_after_eta']:
-                base_date = request.deal_id.eta_actual or request.deal_id.eta_current
-            elif request.milestone_trigger == 'days_before_rts':
-                base_date = request.deal_id.rts_actual or request.deal_id.rts_current
-            
-            if base_date:
-                # Apply offset days
-                if 'before' in request.milestone_trigger:
-                    request.due_date = base_date - timedelta(days=abs(request.milestone_days))
-                elif 'after' in request.milestone_trigger:
-                    request.due_date = base_date + timedelta(days=abs(request.milestone_days))
-                else:
-                    request.due_date = base_date + timedelta(days=request.milestone_days)
+
+            payment = rec.payment_id
+            all_dps = payment.dp_request_ids
+            total_dp_requested = sum(all_dps.mapped('amount_requested'))
+
+            if total_dp_requested <= 0:
+                rec.amount_received = 0.0
+            elif len(all_dps) == 1:
+                # 1:1 - full payment amount (could be different from requested)
+                rec.amount_received = payment.amount
             else:
-                # Fallback to today + standard terms
-                if request.request_type == 'customer':
-                    request.due_date = fields.Date.today() + timedelta(days=7)
+                # M:1 - pro-rate based on requested amounts
+                ratio = rec.amount_requested / total_dp_requested
+                rec.amount_received = payment.amount * ratio
+
+    @api.depends('amount_requested', 'amount_received')
+    def _compute_amount_remaining(self):
+        for rec in self:
+            rec.amount_remaining = rec.amount_requested - rec.amount_received
+
+    # ============================================================
+    # CONSTRAINTS
+    # ============================================================
+
+    @api.constrains('amount_requested')
+    def _check_amounts(self):
+        for rec in self:
+            if rec.amount_requested <= 0:
+                raise ValidationError(_('Amount requested must be positive.'))
+
+    @api.constrains('payment_id', 'partner_id', 'currency_id', 'payment_type')
+    def _check_payment_compatibility(self):
+        """Ensure DP and Payment are compatible when linked"""
+        for rec in self:
+            if not rec.payment_id:
+                continue
+            payment = rec.payment_id
+
+            if payment.partner_id != rec.partner_id:
+                raise ValidationError(_(
+                    "DP Request partner (%s) must match Payment partner (%s)"
+                ) % (rec.partner_id.name, payment.partner_id.name))
+
+            if payment.currency_id != rec.currency_id:
+                raise ValidationError(_(
+                    "DP Request currency (%s) must match Payment currency (%s)"
+                ) % (rec.currency_id.name, payment.currency_id.name))
+
+            if payment.payment_type != rec.payment_type:
+                raise ValidationError(_(
+                    "DP Request type (%s) must match Payment type (%s)"
+                ) % (rec.payment_type, payment.payment_type))
+
+    _sql_constraints = [
+        ('name_uniq', 'unique(name, company_id)',
+         'Downpayment request reference must be unique per company.'),
+    ]
+
+    # ============================================================
+    # LOCKING LOGIC
+    # ============================================================
+
+    PROTECTED_FIELDS = {
+        'amount_requested', 'partner_id', 'currency_id',
+        'deal_id', 'subdeal_id', 'payment_type', 'milestone_id'
+    }
+
+    def write(self, vals):
+        """Lock critical fields when allocated to payment"""
+        for rec in self:
+            if rec.is_allocated and not self.env.context.get('force_dp_write'):
+                # Check for protected field modifications
+                changing_protected = self.PROTECTED_FIELDS & set(vals.keys())
+                if changing_protected:
+                    raise UserError(_(
+                        "Cannot modify %s on allocated DP Request '%s'.\n"
+                        "Deallocate from payment first."
+                    ) % (', '.join(changing_protected), rec.name))
+
+                # Block manual state changes (except system-triggered)
+                if 'state' in vals and not self.env.context.get('from_payment_post'):
+                    raise UserError(_(
+                        "Cannot manually change state of allocated DP Request '%s'.\n"
+                        "State is controlled by linked payment."
+                    ) % rec.name)
+
+        return super().write(vals)
+
+    def unlink(self):
+        """Block deletion of allocated DP requests"""
+        allocated = self.filtered('is_allocated')
+        if allocated:
+            raise UserError(_(
+                "Cannot delete allocated DP Requests:\n%s\n"
+                "Deallocate from payment first."
+            ) % ', '.join(allocated.mapped('name')))
+        return super().unlink()
+
+    # ============================================================
+    # CRUD OVERRIDES
+    # ============================================================
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if vals.get('name', _('New')) == _('New'):
+                payment_type = vals.get('payment_type', 'inbound')
+                if payment_type == 'inbound':
+                    sequence_code = 'dm.dp.customer'
                 else:
-                    request.due_date = fields.Date.today() + timedelta(days=30)
-    
-    @api.depends('due_date', 'state')
-    def _compute_days_overdue(self):
-        """Calculate days overdue"""
-        today = fields.Date.today()
-        for request in self:
-            if request.state in ['sent', 'partial'] and request.due_date and request.due_date < today:
-                request.days_overdue = (today - request.due_date).days
-            else:
-                request.days_overdue = 0
-    
-    @api.depends('invoice_ids')
-    def _compute_invoice_count(self):
-        """Count applied invoices"""
-        for request in self:
-            request.invoice_count = len(request.invoice_ids)
-    
-    @api.constrains('percentage')
-    def _check_percentage(self):
-        """Validate percentage is reasonable (typically 15-25%)"""
-        for request in self:
-            if request.percentage < 0 or request.percentage > 100:
-                raise ValidationError(_('Downpayment percentage must be between 0 and 100.'))
-            
-            # Warn if unusual percentage
-            if request.percentage < 15:
-                _logger.warning(f"Low downpayment percentage: {request.percentage}% for {request.name}")
-            elif request.percentage > 25 and request.percentage < 100:
-                _logger.warning(f"High downpayment percentage: {request.percentage}% for {request.name}")
-    
-    @api.constrains('amount_received', 'amount_requested')
-    def _check_amount_received(self):
-        """Validate received amount doesn't exceed requested"""
-        for request in self:
-            if request.amount_received > request.amount_requested * 1.1:  # Allow 10% overpayment
-                raise ValidationError(_('Received amount significantly exceeds requested amount.'))
-    
-    # Actions
-    def action_send(self):
-        """Send downpayment request to partner"""
-        self.ensure_one()
-        if self.state != 'draft':
-            raise UserError(_('Only draft requests can be sent.'))
-        
-        # TODO: Send email using template
-        # template = self.env.ref('dm_financial.email_template_downpayment_request', False)
-        # if template:
-        #     template.send_mail(self.id, force_send=True)
-        
-        self.write({
-            'state': 'sent',
-            'reminder_date': fields.Date.today()
-        })
-        
-        # Create activity for follow-up
-        self.activity_schedule(
-            'mail.mail_activity_data_todo',
-            summary=_('Follow up on downpayment request'),
-            date_deadline=self.due_date,
-            user_id=self.env.user.id
-        )
-        
+                    sequence_code = 'dm.dp.supplier'
+
+                seq = self.env['ir.sequence'].next_by_code(sequence_code)
+                if not seq:
+                    # Fallback to generic
+                    seq = self.env['ir.sequence'].next_by_code('dm.downpayment.request')
+                vals['name'] = seq or _('New')
+
+        return super().create(vals_list)
+
+    # ============================================================
+    # STATE ACTIONS
+    # ============================================================
+
+    def action_confirm(self):
+        """Confirm DP request - ready for payment allocation"""
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError(_("Only draft requests can be confirmed."))
+        self.write({'state': 'pending'})
         return True
-    
-    def action_register_payment(self):
-        """Register payment received - creates direct journal entry"""
+
+    def action_cancel(self):
+        """Cancel DP request"""
+        for rec in self:
+            if rec.is_allocated:
+                raise UserError(_(
+                    "Cannot cancel allocated DP Request '%s'.\n"
+                    "Deallocate from payment first."
+                ) % rec.name)
+            if rec.state == 'paid':
+                raise UserError(_(
+                    "Cannot cancel paid DP Request '%s'."
+                ) % rec.name)
+        self.write({'state': 'cancelled'})
+        return True
+
+    def action_reset_draft(self):
+        """Reset cancelled request to draft"""
+        for rec in self:
+            if rec.state != 'cancelled':
+                raise UserError(_("Only cancelled requests can be reset to draft."))
+        self.write({'state': 'draft'})
+        return True
+
+    # ============================================================
+    # PAYMENT ACTIONS
+    # ============================================================
+
+    def action_deallocate(self):
+        """Remove DP from payment"""
+        for rec in self:
+            if not rec.payment_id:
+                continue
+
+            if rec.payment_id.state != 'draft':
+                raise UserError(_(
+                    "Cannot deallocate from posted payment '%s'.\n"
+                    "Only draft payments allow deallocation."
+                ) % rec.payment_id.name)
+
+            payment_name = rec.payment_id.name
+            # Revert state if was paid
+            new_state = 'pending' if rec.state == 'paid' else rec.state
+
+            rec.with_context(force_dp_write=True).write({
+                'payment_id': False,
+            })
+            # State update outside locking context
+            if rec.state != new_state:
+                rec.with_context(force_dp_write=True).write({'state': new_state})
+
+            _logger.info(
+                "DP Request %s deallocated from payment %s, state → %s",
+                rec.name, payment_name, new_state
+            )
+        return True
+
+    def action_view_payment(self):
+        """Navigate to linked payment"""
         self.ensure_one()
-        
-        if self.state not in ['sent', 'partial']:
-            raise UserError(_('Payment can only be registered for sent or partially paid requests.'))
-        
-        # Open payment wizard
+        if not self.payment_id:
+            raise UserError(_("No payment linked to this DP Request."))
         return {
-            'name': _('Register Downpayment'),
             'type': 'ir.actions.act_window',
-            'res_model': 'dm.downpayment.payment.wizard',
+            'name': _('Payment'),
+            'res_model': 'account.payment',
+            'res_id': self.payment_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_view_deal(self):
+        """Navigate to source deal"""
+        self.ensure_one()
+        if not self.deal_id:
+            raise UserError(_("No deal linked to this DP Request."))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Deal'),
+            'res_model': 'dm.deal',
+            'res_id': self.deal_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_create_payment_wizard(self):
+        """
+        Open wizard to create payment from selected DP requests.
+        Called from tree view bulk action.
+        """
+        if not self:
+            raise UserError(_("No DP requests selected."))
+
+        # Validation: all must be pending
+        invalid_states = self.filtered(lambda r: r.state != 'pending')
+        if invalid_states:
+            raise UserError(_(
+                "All selected DP requests must be in 'Pending' state.\n"
+                "Invalid: %s"
+            ) % ', '.join(invalid_states.mapped('name')))
+
+        # Validation: not already allocated
+        allocated = self.filtered('is_allocated')
+        if allocated:
+            raise UserError(_(
+                "These DP requests are already allocated to payments:\n%s"
+            ) % ', '.join(allocated.mapped('name')))
+
+        # Validation: same partner
+        partners = self.mapped('partner_id')
+        if len(partners) > 1:
+            raise UserError(_(
+                "Cannot create single payment for multiple partners.\n"
+                "Selected partners: %s"
+            ) % ', '.join(partners.mapped('name')))
+
+        # Validation: same currency
+        currencies = self.mapped('currency_id')
+        if len(currencies) > 1:
+            raise UserError(_(
+                "Cannot create single payment for multiple currencies.\n"
+                "Selected currencies: %s"
+            ) % ', '.join(currencies.mapped('name')))
+
+        # Validation: same payment type
+        payment_types = set(self.mapped('payment_type'))
+        if len(payment_types) > 1:
+            raise UserError(_(
+                "Cannot mix customer and vendor DP requests in single payment."
+            ))
+
+        # Get latest due date for default payment date
+        due_dates = [d for d in self.mapped('due_date') if d]
+        latest_due_date = max(due_dates) if due_dates else fields.Date.today()
+
+        # Generate memo from DP names
+        memo = ', '.join(self.mapped('name'))
+        if len(memo) > 200:
+            memo = memo[:197] + '...'
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Create Payment'),
+            'res_model': 'dm.dp.create.payment.wizard',
             'view_mode': 'form',
             'target': 'new',
             'context': {
-                'default_downpayment_id': self.id,
-                'default_amount': self.amount_due,
-                'default_payment_date': fields.Date.today(),
-            }
+                'default_dp_request_ids': [(6, 0, self.ids)],
+                'default_partner_id': partners.id,
+                'default_currency_id': currencies.id,
+                'default_payment_type': list(payment_types)[0],
+                'default_payment_date': latest_due_date,
+                'default_memo': memo,
+            },
         }
-    
-    def action_mark_paid(self):
-        """Mark as fully paid"""
-        self.ensure_one()
-        
-        if self.amount_due > 0.01:  # Small tolerance for rounding
-            raise UserError(_('Cannot mark as paid - amount still due: %s') % self.amount_due)
-        
-        self.write({
-            'state': 'paid',
-            'payment_date': self.payment_date or fields.Date.today()
-        })
-        
-        # Close activities
-        self.activity_ids.filtered(lambda a: a.activity_type_id.name == 'Todo').action_done()
-        
-        # Update milestone if linked
-        if self.milestone_id:
-            self.milestone_id.update_payment_status()
-        
-        return True
-    
-    def action_cancel(self):
-        """Cancel downpayment request"""
-        for request in self:
-            if request.state == 'paid':
-                raise UserError(_('Cannot cancel paid downpayment requests.'))
-            
-            if request.amount_received > 0:
-                raise UserError(_('Cannot cancel - payment already received. Please refund first.'))
-            
-            request.state = 'cancelled'
-            
-            # Cancel activities
-            request.activity_ids.unlink()
-        
-        return True
-    
-    def action_reset_draft(self):
-        """Reset to draft"""
-        for request in self:
-            if request.state == 'paid':
-                raise UserError(_('Cannot reset paid downpayment requests.'))
-            
-            if request.journal_entry_id:
-                raise UserError(_('Cannot reset - journal entries exist.'))
-            
-            request.state = 'draft'
-        
-        return True
-    
-    def action_send_reminder(self):
-        """Send payment reminder"""
-        self.ensure_one()
-        if self.state not in ['sent', 'partial']:
-            raise UserError(_('Can only send reminders for sent or partial requests.'))
-        
-        # TODO: Send reminder email
-        # template = self.env.ref('dm_financial.email_template_downpayment_reminder', False)
-        # if template:
-        #     template.send_mail(self.id, force_send=True)
-        
-        self.write({
-            'reminder_sent': True,
-            'reminder_date': fields.Date.today()
-        })
-        
-        return True
-    
-    def action_view_invoices(self):
-        """View related invoices"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Applied Invoices'),
-            'res_model': 'account.move',
-            'view_mode': 'tree,form',
-            'domain': [('id', 'in', self.invoice_ids.ids)],
-            'context': {'create': False}
-        }
-    
-    def apply_to_invoice(self, invoice_id, amount=None):
+
+    # ============================================================
+    # LEGACY METHOD - DEPRECATED
+    # ============================================================
+
+    def action_register_payment(self):
         """
-        Apply downpayment to an invoice (pro-rata or specified amount).
-        Used during invoice generation to allocate downpayments.
+        DEPRECATED: Use action_create_payment_wizard instead.
+        Kept for backward compatibility - redirects to new wizard.
         """
-        self.ensure_one()
-        if self.state != 'paid':
-            raise UserError(_('Only paid downpayments can be applied to invoices.'))
-        
-        invoice = self.env['account.move'].browse(invoice_id)
-        if not invoice:
-            raise UserError(_('Invoice not found.'))
-        
-        # Link this downpayment to the invoice
-        self.invoice_ids = [(4, invoice_id)]
-        
-        # The actual amount to apply
-        if amount is None:
-            amount = self.amount_received
-        
-        # Note: Actual accounting reconciliation would happen here
-        # For now, we just track the relationship
-        
-        invoice.message_post(
-            body=_('Downpayment %s applied: %s %s') % (
-                self.name,
-                amount,
-                self.currency_id.symbol
-            )
+        _logger.warning(
+            "action_register_payment is deprecated. Use action_create_payment_wizard. "
+            "Called for DP: %s", self.mapped('name')
         )
-        
-        return amount
-    
-    def create_journal_entry(self, amount_paid):
-        """
-        Create direct journal entry for downpayment (no invoice).
-        Credits/debits partner account directly.
-        """
-        self.ensure_one()
-        
-        AccountMove = self.env['account.move']
-        
-        # Determine accounts
-        if self.request_type == 'customer':
-            # Customer payment - debit bank, credit customer
-            debit_account = self.env.company.bank_journal_id.default_account_id
-            credit_account = self.partner_id.property_account_receivable_id
-            journal = self.env.company.bank_journal_id
-        else:
-            # Supplier payment - debit supplier, credit bank
-            debit_account = self.partner_id.property_account_payable_id
-            credit_account = self.env.company.bank_journal_id.default_account_id
-            journal = self.env.company.bank_journal_id
-        
-        # Create journal entry
-        move_vals = {
-            'journal_id': journal.id,
-            'date': self.payment_date or fields.Date.today(),
-            'ref': f"{self.name} - {self.customer_po_number}",
-            'line_ids': [
-                (0, 0, {
-                    'account_id': debit_account.id,
-                    'debit': amount_paid,
-                    'credit': 0.0,
-                    'partner_id': self.partner_id.id,
-                    'name': f"Downpayment {self.name}",
-                }),
-                (0, 0, {
-                    'account_id': credit_account.id,
-                    'debit': 0.0,
-                    'credit': amount_paid,
-                    'partner_id': self.partner_id.id,
-                    'name': f"Downpayment {self.name}",
-                }),
-            ],
-        }
-        
-        move = AccountMove.create(move_vals)
-        move.action_post()
-        
-        self.journal_entry_id = move
-        
-        return move
-    
-    @api.model
-    def create_from_deal_confirmation(self, deal):
-        """
-        Called when deal is confirmed to create downpayment requests.
-        Typical: 20% customer DP at order, 20% supplier DP before RTS.
-        """
-        requests = self.env['dm.downpayment.request']
-        
-        # Customer downpayment
-        if deal.sale_payment_term_id and hasattr(deal.sale_payment_term_id, 'requires_downpayment'):
-            if deal.sale_payment_term_id.requires_downpayment:
-                # Default 20% at order confirmation
-                customer_dp = self.create({
-                    'request_type': 'customer',
-                    'deal_id': deal.id,
-                    'percentage': deal.sale_payment_term_id.downpayment_percentage or 20.0,
-                    'milestone_trigger': 'confirmed',
-                    'milestone_days': 0,
-                })
-                requests |= customer_dp
-                
-                _logger.info(f"Created customer DP request {customer_dp.name} for deal {deal.name}")
-        
-        # Supplier downpayment
-        if deal.purchase_payment_term_id and hasattr(deal.purchase_payment_term_id, 'requires_downpayment'):
-            if deal.purchase_payment_term_id.requires_downpayment:
-                # Default 20% 14 days before RTS
-                supplier_dp = self.create({
-                    'request_type': 'supplier',
-                    'deal_id': deal.id,
-                    'percentage': deal.purchase_payment_term_id.downpayment_percentage or 20.0,
-                    'milestone_trigger': 'days_before_rts',
-                    'milestone_days': 14,
-                })
-                requests |= supplier_dp
-                
-                _logger.info(f"Created supplier DP request {supplier_dp.name} for deal {deal.name}")
-        
-        return requests
-    
-    @api.model
-    def check_overdue_requests(self):
-        """Cron job to check and update overdue requests"""
-        overdue = self.search([
-            ('state', 'in', ['sent', 'partial']),
-            ('due_date', '<', fields.Date.today())
-        ])
-        
-        for request in overdue:
-            if request.state != 'overdue':
-                request.state = 'overdue'
-                
-                # Create high priority activity
-                request.activity_schedule(
-                    'mail.mail_activity_data_todo',
-                    summary=_('OVERDUE: Downpayment %s days overdue') % request.days_overdue,
-                    date_deadline=fields.Date.today(),
-                    user_id=request.create_uid.id
-                )
-        
-        return True
+        return self.action_create_payment_wizard()

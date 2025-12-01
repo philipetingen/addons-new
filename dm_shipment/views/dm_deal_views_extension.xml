@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Extend Deal Form - Add milestone locking for milestones 3-6 -->
+    <record id="view_dm_deal_form_shipment_milestone_lock" model="ir.ui.view">
+        <field name="name">dm.deal.form.shipment.milestone.lock</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_form"/>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            
+            <!-- Add hidden field for lock state -->
+            <xpath expr="//page[@name='milestones']" position="before">
+                <field name="milestones_locked" invisible="1"/>
+            </xpath>
+            
+            <!-- Add lock banner at top of milestones page -->
+            <xpath expr="//page[@name='milestones']/group[1]" position="before">
+                <div class="alert alert-info" role="alert" 
+                     invisible="not milestones_locked"
+                     style="margin: 16px;">
+                    <p class="mb-0">
+                        <i class="fa fa-lock"/> <strong>Milestones Locked:</strong> 
+                        Loading, ETD, ETA, and Delivery dates are controlled by the shipment.
+                        Use <em>Shipment Rescheduling</em> to change these dates.
+                    </p>
+                </div>
+            </xpath>
+            
+            <!-- MILESTONE 3: LOADING - Add lock -->
+            <xpath expr="//field[@name='loading_requested']" position="attributes">
+                <attribute name="readonly">dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='loading_current']" position="attributes">
+                <attribute name="readonly">loading_actual or dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='loading_actual']" position="attributes">
+                <attribute name="readonly">milestones_locked or 1</attribute>
+            </xpath>
+            
+            <!-- MILESTONE 4: ETD - Add lock -->
+            <xpath expr="//field[@name='etd_requested']" position="attributes">
+                <attribute name="readonly">dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='etd_current']" position="attributes">
+                <attribute name="readonly">etd_actual or dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='etd_actual']" position="attributes">
+                <attribute name="readonly">milestones_locked or 1</attribute>
+            </xpath>
+            
+            <!-- MILESTONE 5: ETA - Add lock -->
+            <xpath expr="//field[@name='eta_requested']" position="attributes">
+                <attribute name="readonly">dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='eta_current']" position="attributes">
+                <attribute name="readonly">eta_actual or dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='eta_actual']" position="attributes">
+                <attribute name="readonly">milestones_locked or 1</attribute>
+            </xpath>
+            
+            <!-- MILESTONE 6: DELIVERY - Add lock -->
+            <xpath expr="//field[@name='delivery_requested']" position="attributes">
+                <attribute name="readonly">dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='delivery_current']" position="attributes">
+                <attribute name="readonly">delivery_actual or dates_readonly or milestones_locked</attribute>
+            </xpath>
+            <xpath expr="//field[@name='delivery_actual']" position="attributes">
+                <attribute name="readonly">milestones_locked or 1</attribute>
+            </xpath>
+            
+        </field>
+    </record>
+    
+</odoo>

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Loading Confirmation Wizard Form -->
+    <record id="view_loading_confirmation_wizard_form" model="ir.ui.view">
+        <field name="name">loading.confirmation.wizard.form</field>
+        <field name="model">loading.confirmation.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Loading Confirmation">
+                <header>
+                    <button name="action_confirm_loading" string="Confirm Loading" type="object" class="oe_highlight"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="shipment_id" readonly="1"/>
+                        </h1>
+                    </div>
+                    
+                    <group>
+                        <group>
+                            <field name="total_containers"/>
+                            <field name="total_lines"/>
+                        </group>
+                        <group>
+                            <field name="lines_with_actuals"/>
+                            <field name="completion_percentage" widget="progressbar"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Hidden fields for conditions -->
+                    <field name="has_over_capacity" invisible="1"/>
+                    <field name="has_lot_mismatch" invisible="1"/>
+                    
+                    <div class="alert alert-warning" role="alert" invisible="not has_over_capacity">
+                        <strong>⚠️ Over Capacity Warning</strong><br/>
+                        One or more containers exceed weight or volume limits.
+                    </div>
+                    
+                    <div class="alert alert-danger" role="alert" invisible="not has_lot_mismatch">
+                        <strong>❌ Lot Quantity Mismatch</strong><br/>
+                        Some lines have lot quantities that don't match loaded quantities. Fix before confirming.
+                    </div>
+                    
+                    <notebook>
+                        <page string="Loading Quantities" name="quantities">
+                            <field name="line_ids" nolabel="1">
+                                <tree editable="bottom" 
+                                      decoration-warning="has_variance" 
+                                      decoration-danger="not lot_quantity_match and quantity_loaded &gt; 0">
+                                    <!-- Hidden fields -->
+                                    <field name="wizard_id" column_invisible="1"/>
+                                    <field name="container_line_id" column_invisible="1"/>
+                                    <field name="deal_line_id" column_invisible="1"/>
+                                    <field name="has_variance" column_invisible="1"/>
+                                    <field name="lot_quantity_match" column_invisible="1"/>
+                                    <field name="lot_count" column_invisible="1"/>
+                                    <field name="total_lot_quantity" column_invisible="1"/>
+                                    
+                                    <!-- Container info -->
+                                    <field name="container_id" readonly="1" optional="show"/>
+                                    <field name="container_number"/>
+                                    
+                                    <!-- Product info -->
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="product_packaging_id" optional="show"/>
+                                    
+                                    <!-- Quantities -->
+                                    <field name="quantity_planned" readonly="1"/>
+                                    <field name="quantity_loaded"/>
+                                    <field name="quantity_variance" readonly="1" optional="show"/>
+                                    <field name="variance_percentage" readonly="1" optional="hide"/>
+                                    
+                                    <!-- Inline lot entry -->
+                                    <field name="lot_number_inline" 
+                                           placeholder="Enter lot number"/>
+                                    <field name="production_date_inline" 
+                                           placeholder="Production date"
+                                           widget="date"/>
+                                    <field name="expiry_date_inline" 
+                                           placeholder="Auto-calculated"
+                                           widget="date"/>
+                                    
+                                    <!-- Lots button - always visible -->
+                                    <button name="action_manage_lots" 
+                                            type="object" 
+                                            string="Lots" 
+                                            icon="fa-list"
+                                            title="Manage production lots"/>
+                                </tree>
+                            </field>
+                        </page>
+                        
+						<page string="Containers &amp; VGM" name="containers_vgm">
+                            <field name="vgm_ids" nolabel="1">
+                                <tree editable="bottom">
+                                    <field name="wizard_id" column_invisible="1"/>
+                                    <field name="container_id" readonly="1"/>
+                                    <field name="container_type" readonly="1"/>
+                                    <field name="container_number" placeholder="ABCD1234567"/>
+                                    <field name="seal_tags" widget="many2many_tags" 
+                                           placeholder="Add seals..."/>
+                                    <field name="tracker_tags" widget="many2many_tags"
+                                           placeholder="Add trackers..."/>
+                                    <field name="is_smart_container"/>
+                                    <field name="planned_weight" readonly="1" optional="show"/>
+                                    <field name="vgm"/>
+                                    <field name="vgm_variance" readonly="1" optional="show"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+</odoo>

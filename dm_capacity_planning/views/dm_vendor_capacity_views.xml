@@ -224,17 +224,5 @@
             </field>
         </record>
         
-        <!-- Menu Item -->
-        <menuitem id="menu_dm_capacity_planning_root"
-                  name="Capacity Planning"
-                  parent="dm_production.menu_dm_production_root"
-                  sequence="50"/>
-        
-        <menuitem id="menu_dm_vendor_capacity"
-                  name="Vendor Capacity"
-                  parent="menu_dm_capacity_planning_root"
-                  action="action_dm_vendor_capacity"
-                  sequence="10"/>
-        
     </data>
 </odoo>

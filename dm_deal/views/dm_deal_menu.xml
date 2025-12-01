@@ -1,70 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Reference the main DonnaMello menu from dm_master_data -->
     
-	<!-- ========================================== -->
-	<!-- MAIN DEALS SECTION                         -->
-	<!-- ========================================== -->
-
-	<!-- Deals Section under main DonnaMello menu -->
-	<menuitem id="menu_dm_deal_section"
-			  name="Sales"
-			  parent="dm_master_data.menu_dm_root"
-			  sequence="20"/>
-
-	<!-- ========================================== -->
-	<!-- DEAL MANAGEMENT MENUS                      -->
-	<!-- ========================================== -->
-
-	<!-- All Deals - NOW FIRST so it becomes default -->
-	<menuitem id="menu_dm_deal"
-			  name="Deals"
-			  parent="menu_dm_deal_section"
-			  action="action_dm_deal"
-			  sequence="10"/>
-
-	<!-- Wizard Path - Guided Deal Creation -->
-	<menuitem id="menu_deal_creation_wizard"
-			  name="Create Deal (Wizard)"
-			  parent="menu_dm_deal_section"
-			  action="action_deal_creation_wizard"
-			  sequence="15"
-			  groups="group_dm_deal_user"/>
-
-	<!-- Quick Create Path - Direct Entry -->
-	<menuitem id="menu_deal_quick_create"
-			  name="Create Deal (Quick)"
-			  parent="menu_dm_deal_section"
-			  action="action_dm_deal"
-			  sequence="20"
-			  groups="group_dm_deal_user"/>
-
-	<!-- Allocation Board -->
-	<menuitem id="menu_dm_deal_allocation_board"
-			  name="Allocation Board"
-			  parent="menu_dm_deal_section"
-			  action="action_dm_deal_allocation_board"
-			  sequence="30"/>
+    <!-- ========================================================================
+         DEAL MANAGEMENT MENU STRUCTURE
+         ======================================================================== -->
     
-    <!-- ========================================== -->
-    <!-- CONFIGURATION MENUS                        -->
-    <!-- ========================================== -->
+    <!-- Root Menu -->
+    <menuitem id="menu_dm_deal_root"
+              name="Deals"
+              sequence="10"
+              web_icon="dm_deal,static/description/icon.png"/>
     
-    <!-- Deal Templates under Configuration -->
+    <!-- Operations Section -->
+    <menuitem id="menu_dm_deal_operations"
+              name="Operations"
+              parent="menu_dm_deal_root"
+              sequence="10"/>
+    
+    <!-- Deals Menu Item (opens tree view with standard New button) -->
+    <menuitem id="menu_dm_deal"
+              name="Deals"
+              parent="menu_dm_deal_operations"
+              action="action_dm_deal"
+              sequence="10"/>
+    
+    <!-- Create Deal via Wizard (separate menu item for guided workflow) -->
+    <menuitem id="menu_dm_deal_create_wizard"
+              name="Create Deal (Wizard)"
+              parent="menu_dm_deal_operations"
+              action="action_deal_creation_wizard"
+              sequence="20"/>
+    
+    <!-- Configuration Section -->
+    <menuitem id="menu_dm_deal_configuration"
+              name="Configuration"
+              parent="menu_dm_deal_root"
+              sequence="90"/>
+    
+    <!-- Deal Templates Menu Item -->
     <menuitem id="menu_dm_deal_template"
               name="Deal Templates"
-              parent="dm_master_data.menu_dm_configuration"
+              parent="menu_dm_deal_configuration"
               action="action_dm_deal_template"
-              sequence="40"
-              groups="group_dm_deal_manager"/>
+              sequence="10"/>
     
-    <!-- Allocations Menu Item  -->
-    <menuitem id="menu_dm_deal_allocation_board"
-              name="Allocation Board"
-              parent="dm_deal.menu_dm_deal_section"
-              action="action_dm_deal_allocation_board"
-              sequence="15"/>
-    
-	
-	
 </odoo>

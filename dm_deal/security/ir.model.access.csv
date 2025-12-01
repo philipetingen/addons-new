@@ -1,14 +1,24 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dm_deal_template_user,dm.deal.template.user,model_dm_deal_template,group_dm_deal_user,1,0,0,0
-access_dm_deal_template_manager,dm.deal.template.manager,model_dm_deal_template,group_dm_deal_manager,1,1,1,1
-access_dm_deal_user,dm.deal.user,model_dm_deal,group_dm_deal_user,1,1,1,0
-access_dm_deal_manager,dm.deal.manager,model_dm_deal,group_dm_deal_manager,1,1,1,1
-access_dm_deal_line_user,dm.deal.line.user,model_dm_deal_line,group_dm_deal_user,1,1,1,1
-access_dm_deal_line_manager,dm.deal.line.manager,model_dm_deal_line,group_dm_deal_manager,1,1,1,1
-access_dm_deal_template_selection_wizard,access_dm_deal_template_selection_wizard,model_dm_deal_template_selection_wizard,base.group_user,1,1,1,0
-access_dm_deal_creation_wizard_user,dm.deal.creation.wizard user,model_dm_deal_creation_wizard,group_dm_deal_user,1,1,1,1
-access_dm_deal_creation_wizard_manager,dm.deal.creation.wizard manager,model_dm_deal_creation_wizard,group_dm_deal_manager,1,1,1,1
-access_dm_deal_creation_wizard_line_user,dm.deal.creation.wizard.line user,model_dm_deal_creation_wizard_line,group_dm_deal_user,1,1,1,1
-access_dm_deal_creation_wizard_line_manager,dm.deal.creation.wizard.line manager,model_dm_deal_creation_wizard_line,group_dm_deal_manager,1,1,1,1
-access_dm_allocation_user,dm.allocation user,model_dm_allocation,base.group_user,1,1,1,0
-access_dm_allocation_manager,dm.allocation manager,model_dm_allocation,base.group_system,1,1,1,1
+access_dm_deal_user,dm.deal user,model_dm_deal,sales_team.group_sale_salesman,1,1,1,0
+access_dm_deal_manager,dm.deal manager,model_dm_deal,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_line_user,dm.deal.line user,model_dm_deal_line,sales_team.group_sale_salesman,1,1,1,0
+access_dm_deal_line_manager,dm.deal.line manager,model_dm_deal_line,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_template_user,dm.deal.template user,model_dm_deal_template,sales_team.group_sale_salesman,1,0,0,0
+access_dm_deal_template_manager,dm.deal.template manager,model_dm_deal_template,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_creation_wizard,access_dm_deal_creation_wizard,model_dm_deal_creation_wizard,base.group_user,1,1,1,1
+access_dm_deal_creation_wizard_line,access_dm_deal_creation_wizard_line,model_dm_deal_creation_wizard_line,base.group_user,1,1,1,1
+access_dm_deal_template_selection_wizard,access_dm_deal_template_selection_wizard,model_dm_deal_template_selection_wizard,base.group_user,1,1,1,1
+access_dm_deal_line_lot_user,dm.deal.line.lot user,model_dm_deal_line_lot,sales_team.group_sale_salesman,1,1,1,0
+access_dm_deal_line_lot_manager,dm.deal.line.lot manager,model_dm_deal_line_lot,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_line_lot_wizard_user,dm.deal.line.lot.wizard user,model_dm_deal_line_lot_wizard,base.group_user,1,1,1,1
+access_dm_deal_line_lot_wizard_line_user,dm.deal.line.lot.wizard.line user,model_dm_deal_line_lot_wizard_line,base.group_user,1,1,1,1
+access_dm_deal_user,dm.deal.user,model_dm_deal,base.group_user,1,1,1,0
+access_dm_deal_manager,dm.deal.manager,model_dm_deal,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_subdeal_user,dm.deal.subdeal.user,model_dm_deal_subdeal,base.group_user,1,1,1,0
+access_dm_deal_subdeal_manager,dm.deal.subdeal.manager,model_dm_deal_subdeal,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_line_user,dm.deal.line.user,model_dm_deal_line,base.group_user,1,1,1,0
+access_dm_deal_line_manager,dm.deal.line.manager,model_dm_deal_line,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_template_user,dm.deal.template.user,model_dm_deal_template,base.group_user,1,0,0,0
+access_dm_deal_template_manager,dm.deal.template.manager,model_dm_deal_template,sales_team.group_sale_manager,1,1,1,1
+access_dm_deal_creation_wizard_user,dm.deal.creation.wizard.user,model_dm_deal_creation_wizard,base.group_user,1,1,1,1
+access_dm_deal_creation_wizard_line_user,dm.deal.creation.wizard.line.user,model_dm_deal_creation_wizard_line,base.group_user,1,1,1,1

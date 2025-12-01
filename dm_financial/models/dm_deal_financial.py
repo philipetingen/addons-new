@@ -65,12 +65,12 @@ class DmDeal(models.Model):
         compute='_compute_financial_counts'
     )
     
-    # Cash flow fields
-    cash_flow_projection = fields.One2many(
-        'dm.cash_flow',
-        'deal_id',
-        string='Cash Flow Projection'
-    )
+    # Cash flow fields - DISABLED (Phase 1)
+    # cash_flow_projection = fields.One2many(
+    #     'dm.cash_flow',
+    #     'deal_id',
+    #     string='Cash Flow Projection'
+    # )
     
     total_receivable = fields.Monetary(
         string='Total Receivable',
@@ -121,20 +121,8 @@ class DmDeal(models.Model):
         help='Computed payment milestone schedule'
     )
     
-    # Computed totals for compatibility
-    total_value = fields.Monetary(
-        string='Total Sales Value',
-        compute='_compute_deal_totals',
-        store=True,
-        currency_field='currency_id'
-    )
-    
-    purchase_total = fields.Monetary(
-        string='Total Purchase Value',
-        compute='_compute_deal_totals',
-        store=True,
-        currency_field='currency_id'
-    )
+    # NOTE: total_value and purchase_total removed - use amount_untaxed_sale 
+    # and amount_untaxed_purchase from dm_deal core instead
     
     # ============================================================
     # MODULE AVAILABILITY CHECKS
@@ -349,12 +337,8 @@ class DmDeal(models.Model):
     # COMPUTE METHODS FOR FINANCIAL TRACKING
     # ============================================================
     
-    @api.depends('line_ids', 'line_ids.amount_sale', 'line_ids.amount_purchase')
-    def _compute_deal_totals(self):
-        """Compute deal totals from lines"""
-        for deal in self:
-            deal.total_value = sum(deal.line_ids.mapped('amount_sale'))
-            deal.purchase_total = sum(deal.line_ids.mapped('amount_purchase'))
+    # NOTE: _compute_deal_totals removed - dm_deal core already computes
+    # amount_untaxed_sale and amount_untaxed_purchase
     
     @api.depends('downpayment_request_ids', 'invoice_ids')
     def _compute_financial_counts(self):
@@ -483,7 +467,12 @@ class DmDeal(models.Model):
     def _create_downpayment_requests(self):
         """Create downpayment requests based on payment terms
         
-        REFACTORED: Includes duplicate prevention and better logging
+        REFACTORED: 
+        - Updated field names for dm_downpayment_request v2.0
+        - payment_type instead of request_type
+        - 'inbound'/'outbound' instead of 'customer'/'supplier'
+        - Includes partner_id (now required)
+        - Removed deprecated fields (milestone_trigger, milestone_days, payment_term_line_id)
         """
         self.ensure_one()
         
@@ -510,6 +499,7 @@ class DmDeal(models.Model):
                 )
         
         DP = self.env['dm.downpayment.request']
+        created_count = 0
         
         # Customer downpayment (Sales)
         if self.sale_payment_term_id:
@@ -520,54 +510,53 @@ class DmDeal(models.Model):
                     # Calculate amount
                     if dp_line.value == 'percent':
                         percentage = dp_line.value_amount
-                        amount = self.total_value * (percentage / 100.0)
+                        amount = self.amount_untaxed_sale * (percentage / 100.0)
                     else:
                         percentage = 0.0
                         amount = dp_line.value_amount
                     
+                    # Skip zero amounts
+                    if amount <= 0:
+                        _logger.debug(f"Skipping zero-amount customer DP line")
+                        continue
+                    
                     # Calculate due date
                     due_date = self._calculate_payment_date(dp_line, is_supplier=False)
                     
-                    # Determine milestone trigger
-                    milestone_trigger = 'confirmed'  # Default for customer
-                    milestone_days = 0
-                    
-                    if dp_line.milestone_mode == 'milestone' and dp_line.milestone_type_id:
-                        code_map = {
-                            'order_conf': 'confirmed',
-                            'prod_start': 'production_start',
-                            'rts': 'rts',
-                            'loading': 'loading',
-                            'etd': 'etd',
-                            'eta': 'eta',
-                        }
-                        milestone_trigger = code_map.get(
-                            dp_line.milestone_type_id.milestone_code, 
-                            'confirmed'
-                        )
-                        
-                        if dp_line.milestone_timing == 'before':
-                            milestone_days = -abs(dp_line.milestone_days or 0)
-                        elif dp_line.milestone_timing == 'after':
-                            milestone_days = abs(dp_line.milestone_days or 0)
-                        else:
-                            milestone_days = 0
-                    
                     _logger.info(
                         f"  Creating customer DP: {percentage}% = ${amount:.2f}, "
-                        f"due {due_date}, trigger={milestone_trigger}"
+                        f"due {due_date}"
                     )
                     
-                    DP.create({
-                        'request_type': 'customer',
+                    dp_vals = {
+                        'payment_type': 'inbound',
                         'deal_id': self.id,
+                        'partner_id': self.customer_id.id,
+                        'currency_id': self.currency_id.id,
                         'percentage': percentage,
                         'amount_requested': amount,
                         'due_date': due_date or fields.Date.today(),
-                        'milestone_trigger': milestone_trigger,
-                        'milestone_days': milestone_days,
-                        'payment_term_line_id': dp_line.id,
-                    })
+                        'payment_term_id': self.sale_payment_term_id.id,
+                    }
+                    
+                    # Add milestone_id if available
+                    if hasattr(dp_line, 'milestone_type_id') and dp_line.milestone_type_id:
+                        # Find or create payment milestone for this deal
+                        milestone = self._get_or_create_payment_milestone(
+                            dp_line.milestone_type_id,
+                            'customer',
+                            percentage,
+                            amount
+                        )
+                        if milestone:
+                            dp_vals['milestone_id'] = milestone.id
+                    
+                    try:
+                        dp = DP.create(dp_vals)
+                        created_count += 1
+                        _logger.info(f"    Created DP: {dp.name}")
+                    except Exception as e:
+                        _logger.error(f"    Failed to create customer DP: {e}")
         
         # Supplier downpayment (Purchase)
         if self.purchase_payment_term_id:
@@ -578,56 +567,111 @@ class DmDeal(models.Model):
                     # Calculate amount
                     if dp_line.value == 'percent':
                         percentage = dp_line.value_amount
-                        amount = self.purchase_total * (percentage / 100.0)
+                        amount = self.amount_untaxed_purchase * (percentage / 100.0)
                     else:
                         percentage = 0.0
                         amount = dp_line.value_amount
                     
+                    # Skip zero amounts
+                    if amount <= 0:
+                        _logger.debug(f"Skipping zero-amount supplier DP line")
+                        continue
+                    
                     # Calculate due date
                     due_date = self._calculate_payment_date(dp_line, is_supplier=True)
                     
-                    # Determine milestone trigger
-                    milestone_trigger = 'production_start'  # Default for supplier
-                    milestone_days = -14  # Default 14 days before
-                    
-                    if dp_line.milestone_mode == 'milestone' and dp_line.milestone_type_id:
-                        code_map = {
-                            'order_conf': 'confirmed',
-                            'prod_start': 'production_start',
-                            'rts': 'rts',
-                            'loading': 'loading',
-                            'etd': 'etd',
-                            'eta': 'eta',
-                        }
-                        milestone_trigger = code_map.get(
-                            dp_line.milestone_type_id.milestone_code, 
-                            'production_start'
-                        )
-                        
-                        if dp_line.milestone_timing == 'before':
-                            milestone_days = -abs(dp_line.milestone_days or 0)
-                        elif dp_line.milestone_timing == 'after':
-                            milestone_days = abs(dp_line.milestone_days or 0)
-                        else:
-                            milestone_days = 0
-                    
                     _logger.info(
                         f"  Creating supplier DP: {percentage}% = ${amount:.2f}, "
-                        f"due {due_date}, trigger={milestone_trigger}"
+                        f"due {due_date}"
                     )
                     
-                    DP.create({
-                        'request_type': 'supplier',
+                    dp_vals = {
+                        'payment_type': 'outbound',
                         'deal_id': self.id,
+                        'partner_id': self.supplier_id.id,
+                        'currency_id': self.currency_id.id,
                         'percentage': percentage,
                         'amount_requested': amount,
                         'due_date': due_date or fields.Date.today(),
-                        'milestone_trigger': milestone_trigger,
-                        'milestone_days': milestone_days,
-                        'payment_term_line_id': dp_line.id,
-                    })
+                        'payment_term_id': self.purchase_payment_term_id.id,
+                    }
+                    
+                    # Add milestone_id if available
+                    if hasattr(dp_line, 'milestone_type_id') and dp_line.milestone_type_id:
+                        milestone = self._get_or_create_payment_milestone(
+                            dp_line.milestone_type_id,
+                            'supplier',
+                            percentage,
+                            amount
+                        )
+                        if milestone:
+                            dp_vals['milestone_id'] = milestone.id
+                    
+                    try:
+                        dp = DP.create(dp_vals)
+                        created_count += 1
+                        _logger.info(f"    Created DP: {dp.name}")
+                    except Exception as e:
+                        _logger.error(f"    Failed to create supplier DP: {e}")
         
-        _logger.info(f"Downpayment request creation completed for {self.name}")
+        _logger.info(
+            f"Downpayment request creation completed for {self.name}: "
+            f"{created_count} DPs created"
+        )
+        
+        # Post chatter message
+        if created_count > 0:
+            self.message_post(
+                body=_(
+                    "Created %d downpayment request(s) based on payment terms."
+                ) % created_count,
+                message_type='comment'
+            )
+    
+    def _get_or_create_payment_milestone(self, milestone_type, payment_type, percentage, amount):
+        """Get or create a payment milestone for this deal
+        
+        Args:
+            milestone_type: dm.milestone.type record
+            payment_type: 'customer' or 'supplier'
+            percentage: percentage of deal value
+            amount: calculated amount
+            
+        Returns:
+            dm.payment.milestone record or False
+        """
+        self.ensure_one()
+        
+        PaymentMilestone = self.env.get('dm.payment.milestone')
+        if not PaymentMilestone:
+            _logger.debug("dm.payment.milestone model not available")
+            return False
+        
+        # Check if milestone already exists for this deal/type/payment_type
+        existing = PaymentMilestone.search([
+            ('deal_id', '=', self.id),
+            ('milestone_type_id', '=', milestone_type.id),
+            ('payment_type', '=', payment_type),
+        ], limit=1)
+        
+        if existing:
+            return existing
+        
+        # Create new milestone
+        try:
+            milestone = PaymentMilestone.create({
+                'deal_id': self.id,
+                'milestone_type_id': milestone_type.id,
+                'payment_type': payment_type,
+                'percentage': percentage,
+            })
+            _logger.info(
+                f"Created payment milestone {milestone.name} for deal {self.name}"
+            )
+            return milestone
+        except Exception as e:
+            _logger.warning(f"Failed to create payment milestone: {e}")
+            return False
     
     def _create_invoice_split_config(self):
         """Create invoice split configuration"""
@@ -643,54 +687,16 @@ class DmDeal(models.Model):
             
             self.invoice_split_config_id = config
     
-    def _generate_cash_flow_projection(self):
-        """Generate cash flow projection based on payment terms"""
-        self.ensure_one()
-        
-        CashFlow = self.env['dm.cash_flow']
-        
-        # Clear existing projections
-        self.cash_flow_projection.unlink()
-        
-        projections = []
-        
-        # Customer payments (inflows)
-        if self.sale_payment_term_id:
-            for line in self.sale_payment_term_id.line_ids:
-                amount = self.total_value * (line.value_amount / 100.0) if line.value == 'percent' else line.value_amount
-                date = self._calculate_payment_date(line)
-                
-                if date:
-                    projections.append({
-                        'deal_id': self.id,
-                        'date': date,
-                        'type': 'inflow',
-                        'category': 'customer_payment',
-                        'description': f"Customer payment - {line.milestone_type_id.name if hasattr(line, 'milestone_type_id') and line.milestone_type_id else 'Standard'}",
-                        'amount': amount,
-                        'currency_id': self.currency_id.id,
-                    })
-        
-        # Supplier payments (outflows)
-        if self.purchase_payment_term_id:
-            for line in self.purchase_payment_term_id.line_ids:
-                amount = self.purchase_total * (line.value_amount / 100.0) if line.value == 'percent' else line.value_amount
-                date = self._calculate_payment_date(line, is_supplier=True)
-                
-                if date:
-                    projections.append({
-                        'deal_id': self.id,
-                        'date': date,
-                        'type': 'outflow',
-                        'category': 'supplier_payment',
-                        'description': f"Supplier payment - {line.milestone_type_id.name if hasattr(line, 'milestone_type_id') and line.milestone_type_id else 'Standard'}",
-                        'amount': amount,
-                        'currency_id': self.currency_id.id,
-                    })
-        
-        # Create projection records
-        for proj in sorted(projections, key=lambda x: x['date']):
-            CashFlow.create(proj)
+    # DISABLED - Phase 1 (dm.cash_flow model removed)
+    # def _generate_cash_flow_projection(self):
+    #     """Generate cash flow projection based on payment terms"""
+    #     self.ensure_one()
+    #     
+    #     CashFlow = self.env['dm.cash_flow']
+    #     
+    #     # Clear existing projections
+    #     self.cash_flow_projection.unlink()
+    #     ... (method disabled)
     
     def _calculate_payment_date(self, payment_line, is_supplier=False):
         """Calculate payment date based on milestone

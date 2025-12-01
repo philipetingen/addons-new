@@ -1,2 +1,3 @@
-from . import dm_cash_flow_projection_wizard
-from . import dm_invoice_generation_wizard
+# -*- coding: utf-8 -*-
+from . import dp_create_payment_wizard
+from . import dp_assign_wizard

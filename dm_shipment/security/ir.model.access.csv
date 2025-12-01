@@ -1,4 +1,17 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_dm_shipment_user,dm.shipment user,model_dm_shipment,dm_deal.group_dm_deal_user,1,1,1,0
-access_dm_shipment_manager,dm.shipment manager,model_dm_shipment,dm_deal.group_dm_deal_manager,1,1,1,1
-access_shipment_allocation_wizard,dm.shipment.allocation.wizard,model_dm_shipment_allocation_wizard,base.group_user,1,1,1,0
+access_dm_shipment_user,dm.shipment.user,model_dm_shipment,sales_team.group_sale_salesman,1,1,1,0
+access_dm_shipment_manager,dm.shipment.manager,model_dm_shipment,sales_team.group_sale_manager,1,1,1,1
+access_shipment_allocation_wizard_user,shipment.allocation.wizard.user,model_shipment_allocation_wizard,sales_team.group_sale_salesman,1,1,1,1
+access_shipment_allocation_date_strategy_line_user,shipment.allocation.date.strategy.line.user,model_shipment_allocation_date_strategy_line,sales_team.group_sale_salesman,1,1,1,1
+access_dm_container_user,dm.container.user,model_dm_container,sales_team.group_sale_salesman,1,1,1,0
+access_dm_container_manager,dm.container.manager,model_dm_container,sales_team.group_sale_manager,1,1,1,1
+access_dm_container_line_user,dm.container.line.user,model_dm_container_line,sales_team.group_sale_salesman,1,1,1,0
+access_dm_container_seal_user,dm.container.seal.user,model_dm_container_seal,sales_team.group_sale_salesman,1,1,1,1
+access_dm_container_tracker_user,dm.container.tracker.user,model_dm_container_tracker,sales_team.group_sale_salesman,1,1,1,1
+access_container_allocation_wizard_user,container.allocation.wizard.user,model_container_allocation_wizard,sales_team.group_sale_salesman,1,1,1,1
+access_loading_confirmation_wizard,access_loading_confirmation_wizard,model_loading_confirmation_wizard,base.group_user,1,1,1,1
+access_loading_confirmation_wizard_line,access_loading_confirmation_wizard_line,model_loading_confirmation_wizard_line,base.group_user,1,1,1,1
+access_loading_confirmation_wizard_vgm,access_loading_confirmation_wizard_vgm,model_loading_confirmation_wizard_vgm,base.group_user,1,1,1,1
+access_loading_lot_wizard,access_loading_lot_wizard,model_loading_lot_wizard,base.group_user,1,1,1,1
+access_shipment_reschedule_wizard_user,shipment.reschedule.wizard.user,model_shipment_reschedule_wizard,sales_team.group_sale_salesman,1,1,1,1
+access_shipment_reschedule_wizard_line_user,shipment.reschedule.wizard.line.user,model_shipment_reschedule_wizard_line,sales_team.group_sale_salesman,1,1,1,1

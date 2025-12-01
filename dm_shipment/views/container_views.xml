@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Container Form View -->
+    <record id="view_dm_container_form" model="ir.ui.view">
+        <field name="name">dm.container.form</field>
+        <field name="model">dm.container</field>
+        <field name="arch" type="xml">
+            <form string="Container">
+                <header>
+                    <field name="state" widget="statusbar" readonly="1"/>
+                </header>
+                
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="container_number" placeholder="Container #"/>
+                        </h1>
+                        <h3>
+                            <field name="container_type_id" placeholder="Select Type..."/>
+                        </h3>
+                    </div>
+                    
+                    <group>
+                        <group name="basic" string="Basic Info">
+                            <field name="shipment_id" readonly="1"/>
+                            <field name="sequence"/>
+                            <field name="is_reefer" invisible="1"/>
+                        </group>
+                        
+                        <group name="utilization" string="Utilization">
+                            <field name="planned_packages"/>
+                            <field name="actual_packages"/>
+                            <field name="utilization_weight" widget="percentage"/>
+                            <field name="utilization_volume" widget="percentage"/>
+                            <field name="container_teu"/>
+                            <field name="is_over_capacity" invisible="1"/>
+                        </group>
+                    </group>
+                    
+                    <group name="warning" invisible="not is_over_capacity">
+                        <div class="alert alert-danger" role="alert">
+                            <strong>⚠️ Over Capacity Warning</strong><br/>
+                            This container exceeds weight or volume limits!
+                        </div>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Container Lines" name="lines">
+                            <field name="line_ids">
+                                <tree editable="bottom" decoration-danger="quantity_variance &lt; 0">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="deal_id"/>
+                                    <field name="product_id"/>
+                                    <field name="product_packaging_id"/>
+                                    <field name="quantity_planned"/>
+                                    <field name="quantity_loaded"/>
+                                    <field name="quantity_variance" 
+                                           decoration-success="quantity_variance == 0"
+                                           decoration-danger="quantity_variance &lt; 0"/>
+                                    <field name="lot_count"/>
+                                    <field name="lot_summary"/>
+                                </tree>
+                            </field>
+                        </page>
+                        
+                        <page string="Security" name="security">
+                            <group>
+                                <group name="seals">
+                                    <field name="seal_tags" widget="many2many_tags"/>
+                                </group>
+                                <group name="trackers">
+                                    <field name="tracker_tags" widget="many2many_tags"/>
+                                    <field name="is_smart_container"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <page string="Reefer Settings" name="reefer" invisible="not is_reefer">
+                            <group>
+                                <group name="temperature">
+                                    <field name="temp_required"/>
+                                    <field name="temp_range_min"/>
+                                    <field name="temp_range_max"/>
+                                </group>
+                                <group name="humidity">
+                                    <field name="humidity_required"/>
+                                    <field name="humidity_range_min"/>
+                                    <field name="humidity_range_max"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <page string="VGM &amp; Weights" name="vgm">
+                            <group>
+                                <group name="vgm_info">
+                                    <field name="vgm"/>
+                                    <field name="vgm_declaration_date"/>
+                                </group>
+                                <group name="weights">
+                                    <field name="planned_weight"/>
+                                    <field name="actual_weight"/>
+                                    <field name="planned_volume"/>
+                                    <field name="actual_volume"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+                <div class="oe_chatter">
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+    
+    <!-- Container Tree View -->
+    <record id="view_dm_container_tree" model="ir.ui.view">
+        <field name="name">dm.container.tree</field>
+        <field name="model">dm.container</field>
+        <field name="arch" type="xml">
+            <tree string="Containers" decoration-danger="is_over_capacity == True">
+                <field name="sequence" widget="handle"/>
+                <field name="container_number"/>
+                <field name="container_type_id"/>
+                <field name="planned_packages"/>
+                <field name="actual_packages"/>
+                <field name="utilization_weight" widget="percentage"/>
+                <field name="utilization_volume" widget="percentage"/>
+                <field name="container_teu"/>
+                <field name="is_over_capacity" invisible="1"/>
+                <field name="state" widget="badge"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Container Search View -->
+    <record id="view_dm_container_search" model="ir.ui.view">
+        <field name="name">dm.container.search</field>
+        <field name="model">dm.container</field>
+        <field name="arch" type="xml">
+            <search string="Search Containers">
+                <field name="container_number"/>
+                <field name="container_type_id"/>
+                <field name="shipment_id"/>
+                
+                <filter string="Over Capacity" name="over_capacity" 
+                        domain="[('is_over_capacity', '=', True)]"/>
+                <filter string="Reefer" name="reefer" 
+                        domain="[('is_reefer', '=', True)]"/>
+                
+                <group expand="0" string="Group By">
+                    <filter string="Shipment" name="group_shipment" 
+                            context="{'group_by': 'shipment_id'}"/>
+                    <filter string="Type" name="group_type" 
+                            context="{'group_by': 'container_type_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    
+</odoo>

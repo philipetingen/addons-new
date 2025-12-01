@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- ============================================================ -->
+    <!-- SUB-DEAL FORM VIEW (Technical - normally hidden) -->
+    <!-- ============================================================ -->
+    
+    <record id="view_dm_deal_subdeal_form" model="ir.ui.view">
+        <field name="name">dm.deal.subdeal.form</field>
+        <field name="model">dm.deal.subdeal</field>
+        <field name="arch" type="xml">
+            <form string="Sub-Deal">
+                <header>
+                    <button name="action_confirm" 
+                            string="Confirm" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_start_production" 
+                            string="Start Production" 
+                            type="object"
+                            invisible="state not in ['confirmed', 'validated']"/>
+                    <button name="action_mark_ready" 
+                            string="Mark Ready" 
+                            type="object"
+                            invisible="state != 'in_production'"/>
+                    <button name="action_mark_shipped" 
+                            string="Mark Shipped" 
+                            type="object"
+                            invisible="state != 'ready'"/>
+                    <button name="action_mark_delivered" 
+                            string="Mark Delivered" 
+                            type="object"
+                            invisible="state != 'shipped'"/>
+                    <button name="action_cancel" 
+                            string="Cancel" 
+                            type="object"
+                            invisible="state in ['cancelled', 'delivered']"/>
+                    <field name="state" widget="statusbar" 
+                           statusbar_visible="draft,confirmed,in_production,ready,shipped,delivered"/>
+                </header>
+                
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Sub-Deal Name"/>
+                        </h1>
+                        <h2>
+                            <field name="deal_id" readonly="1"/> - 
+                            <field name="customer_po_number" readonly="1"/>
+                        </h2>
+                    </div>
+                    
+                    <group>
+                        <group string="Reference">
+                            <field name="deal_id" readonly="1"/>
+                            <field name="customer_id" readonly="1"/>
+                            <field name="supplier_id" readonly="1"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group string="Documents">
+                            <field name="sale_order_id" readonly="1"/>
+                            <field name="purchase_order_id" readonly="1"/>
+                            <field name="shipment_id" readonly="1"/>
+                            <field name="shipment_allocated" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <notebook>
+                        <page string="Lines" name="lines">
+                            <field name="line_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"/>
+                                    <field name="product_packaging_id"/>
+                                    <field name="quantity_packaging"/>
+                                    <field name="price_packaging_sale"/>
+                                    <field name="amount_sale" sum="Total"/>
+                                </tree>
+                            </field>
+                        </page>
+                        
+                        <page string="Milestones" name="milestones">
+                            <group>
+                                <group string="Production">
+                                    <field name="production_start_requested"/>
+                                    <field name="production_start_current"/>
+                                    <field name="production_start_actual" readonly="1"/>
+                                    <field name="production_start_calculated" readonly="1"/>
+                                </group>
+                                <group string="Ready to Ship">
+                                    <field name="rts_requested"/>
+                                    <field name="rts_current"/>
+                                    <field name="rts_actual" readonly="1"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Loading">
+                                    <field name="loading_requested"/>
+                                    <field name="loading_current"/>
+                                    <field name="loading_actual" readonly="1"/>
+                                </group>
+                                <group string="Transit">
+                                    <field name="etd_requested"/>
+                                    <field name="etd_current"/>
+                                    <field name="etd_actual" readonly="1"/>
+                                    <field name="eta_requested"/>
+                                    <field name="eta_current"/>
+                                    <field name="eta_actual" readonly="1"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Delivery">
+                                    <field name="delivery_requested"/>
+                                    <field name="delivery_current"/>
+                                    <field name="delivery_actual" readonly="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        
+                        <page string="Amounts" name="amounts">
+                            <group>
+                                <group>
+                                    <field name="currency_id" invisible="1"/>
+                                    <field name="amount_untaxed_sale"/>
+                                    <field name="amount_untaxed_purchase"/>
+                                </group>
+                                <group>
+                                    <field name="margin_amount"/>
+                                    <field name="margin_percent"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+    
+    <!-- ============================================================ -->
+    <!-- SUB-DEAL TREE VIEW (Technical - for debugging) -->
+    <!-- ============================================================ -->
+    
+    <record id="view_dm_deal_subdeal_tree" model="ir.ui.view">
+        <field name="name">dm.deal.subdeal.tree</field>
+        <field name="model">dm.deal.subdeal</field>
+        <field name="arch" type="xml">
+            <tree string="Sub-Deals">
+                <field name="deal_id"/>
+                <field name="name"/>
+                <field name="customer_id"/>
+                <field name="state" 
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'confirmed'"
+                       decoration-warning="state in ['in_production', 'ready']"
+                       decoration-success="state in ['shipped', 'delivered']"
+                       decoration-danger="state == 'cancelled'"
+                       widget="badge"/>
+                <field name="amount_untaxed_sale" sum="Total Sale"/>
+                <field name="sale_order_id"/>
+                <field name="purchase_order_id"/>
+                <field name="shipment_allocated"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- ============================================================ -->
+    <!-- SUB-DEAL ACTION (Technical - normally hidden) -->
+    <!-- ============================================================ -->
+    
+    <record id="action_dm_deal_subdeal" model="ir.actions.act_window">
+        <field name="name">Sub-Deals</field>
+        <field name="res_model">dm.deal.subdeal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Sub-deals are created automatically from deals.
+            </p>
+            <p>
+                This view is for technical purposes only.
+                Users should interact with deals, not sub-deals directly.
+            </p>
+        </field>
+    </record>
+    
+    <!-- Note: No menu item in Phase 0 - subdeals accessed via deal form -->
+    
+</odoo>

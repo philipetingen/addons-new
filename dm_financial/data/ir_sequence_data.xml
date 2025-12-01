@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Generic DP Request sequence (fallback) -->
+        <record id="seq_dm_downpayment_request" model="ir.sequence">
+            <field name="name">Downpayment Request</field>
+            <field name="code">dm.downpayment.request</field>
+            <field name="prefix">DP/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+        <!-- Customer DP Request sequence -->
+        <record id="seq_dm_downpayment_request_customer" model="ir.sequence">
+            <field name="name">Customer Downpayment Request</field>
+            <field name="code">dm.downpayment.request.customer</field>
+            <field name="prefix">DP/IN/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+        <!-- Vendor DP Request sequence -->
+        <record id="seq_dm_downpayment_request_vendor" model="ir.sequence">
+            <field name="name">Vendor Downpayment Request</field>
+            <field name="code">dm.downpayment.request.vendor</field>
+            <field name="prefix">DP/OUT/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

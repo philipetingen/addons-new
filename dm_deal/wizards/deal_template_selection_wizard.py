@@ -205,36 +205,20 @@ class DealTemplateSelectionWizard(models.TransientModel):
             wizard.comparison_html = html
     
     def action_apply_selected(self):
-        """Apply selected template"""
-        _logger.warning("🔷 DIAGNOSTIC: Wizard action_apply_selected CALLED")
-        _logger.warning(f"   Selected template: {self.selected_template_id.name if self.selected_template_id else 'NONE'}")
-        _logger.warning(f"   Deal ID: {self.deal_id.id if self.deal_id else 'NOT SET'}")
-        
-        self.ensure_one()
-        
-        if not self.selected_template_id:
-            _logger.warning("   ❌ No template selected")
-            raise UserError(_('Please select a template to apply.'))
-        
-        template = self.selected_template_id
-        
-        # Apply to deal if deal_id exists
-        if self.deal_id:
-            _logger.warning(f"   ✅ Applying template to deal {self.deal_id.name}")
-            self.deal_id._apply_single_template(template)
+            """Apply selected template - delegates to model"""
+            self.ensure_one()
             
-            # Post message
-            self.deal_id.message_post(
-                body=_(f"Template '{template.name}' selected from wizard"),
-                subtype_xmlid='mail.mt_note'
-            )
-            _logger.warning(f"   ✅ Template applied successfully")
-            _logger.warning(f"      - deal.template_id: {self.deal_id.template_id.name if self.deal_id.template_id else 'ERROR: NOT SET'}")
-            _logger.warning(f"      - deal.supplier_id: {self.deal_id.supplier_id.name if self.deal_id.supplier_id else 'ERROR: NOT SET'}")
-        else:
-            _logger.warning(f"   ⚠️ No deal_id - cannot apply (unsaved deal)")
-        
-        return {'type': 'ir.actions.act_window_close'}
+            if not self.selected_template_id:
+                raise UserError(_('Please select a template to apply.'))
+            
+            # Apply to deal if deal_id exists
+            if self.deal_id:
+                self.deal_id.apply_selected_template_from_wizard(self.selected_template_id.id)
+                _logger.info(f"Template '{self.selected_template_id.name}' applied to deal {self.deal_id.name}")
+            else:
+                _logger.warning("No deal_id - cannot apply template to unsaved deal")
+            
+            return {'type': 'ir.actions.act_window_close'}
     
     def action_skip(self):
         """Skip template selection - manual configuration"""

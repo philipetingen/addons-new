@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 import logging
@@ -6,19 +7,25 @@ _logger = logging.getLogger(__name__)
 
 
 class DmDealWorkflow(models.Model):
-    """Deal Workflow Extension - Validation, Confirmation, Allocations"""
+    """Deal Workflow Extension - All State Transitions
+    
+    Phase 0: Core workflow with subdeal support.
+    
+    Note: Production-related actions (action_start_production, action_mark_ready_to_ship)
+    are in dm_deal_production.py extension.
+    """
     _inherit = 'dm.deal'
     _description = 'Deal - Workflow Extension'
     
-    # ============================================================
-    # WORKFLOW ACTION METHODS
-    # ============================================================
+    # =========================================================================
+    # VALIDATION (Deal-only, pre-subdeal)
+    # =========================================================================
     
     def action_validate(self):
         """
-        Phase 4B Step 1: Validate deal data completeness ONLY.
+        Validate deal data completeness ONLY.
         
-        Negotiation phase - does NOT create SO/PO yet.
+        This is the negotiation phase - does NOT create SO/PO yet.
         Commitment deferred to action_confirm().
         """
         for deal in self:
@@ -43,6 +50,10 @@ class DmDealWorkflow(models.Model):
                 if line.quantity_packaging <= 0:
                     raise UserError(_('All deal lines must have positive quantity'))
             
+            # Create subdeal if doesn't exist
+            if not deal.subdeal_ids:
+                deal._create_primary_subdeal()
+            
             # Set validation date
             deal.validation_date = fields.Date.today()
             
@@ -61,10 +72,14 @@ class DmDealWorkflow(models.Model):
             )
         
         return True
-
+    
+    # =========================================================================
+    # CONFIRMATION (SO/PO Creation - Commitment Point)
+    # =========================================================================
+    
     def action_confirm(self):
         """
-        Phase 4B Step 1: Confirm deal and CREATE SO/PO.
+        Confirm deal and CREATE SO/PO.
         
         THIS is the commitment point - creates and confirms documents.
         """
@@ -150,14 +165,193 @@ class DmDealWorkflow(models.Model):
         
         return True
     
-    def _check_auto_confirmation(self):
+    # =========================================================================
+    # SHIPMENT WORKFLOW
+    # =========================================================================
+    
+    def action_mark_shipped(self):
         """
-        DEPRECATED in Phase 4B: Auto-confirmation removed.
-        Confirmation now requires explicit action_confirm() call.
-        Kept for backward compatibility.
+        Mark deal as shipped.
+        Will be automated by dm_shipment module when available.
         """
-        _logger.info("_check_auto_confirmation called but skipped (Phase 4B: explicit confirmation required)")
-        return
+        for deal in self:
+            if deal.state not in ['ready', 'in_production']:
+                raise UserError(_(
+                    'Can only mark deals as shipped when ready or in production.\n'
+                    'Current state: %s'
+                ) % dict(deal._fields['state'].selection).get(deal.state))
+            
+            deal.write({
+                'state': 'shipped',
+            })
+            
+            deal.message_post(
+                body=_('Deal marked as shipped by %s') % self.env.user.name,
+                subject=_('Deal Shipped'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+            
+            _logger.info(f"Deal {deal.name} marked as shipped by {self.env.user.name}")
+        
+        return True
+    
+    def action_mark_delivered(self):
+        """
+        Mark deal as delivered.
+        Will be automated by dm_shipment module when available.
+        """
+        for deal in self:
+            if deal.state != 'shipped':
+                raise UserError(_(
+                    'Can only mark shipped deals as delivered.\n'
+                    'Current state: %s'
+                ) % dict(deal._fields['state'].selection).get(deal.state))
+            
+            deal.write({
+                'state': 'delivered',
+            })
+            
+            deal.message_post(
+                body=_('Deal marked as delivered by %s') % self.env.user.name,
+                subject=_('Deal Delivered'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+            
+            _logger.info(f"Deal {deal.name} marked as delivered by {self.env.user.name}")
+        
+        return True
+    
+    # =========================================================================
+    # COMPLETION (Deal-only, post-subdeal)
+    # =========================================================================
+    
+    def action_complete(self):
+        """
+        Mark deal as completed - final closure by manager.
+        FIXED: Must be in 'delivered' state, not 'confirmed'.
+        """
+        for deal in self:
+            # FIXED: Check for 'delivered' state
+            if deal.state != 'delivered':
+                raise UserError(_(
+                    'Can only complete deals that are delivered.\n\n'
+                    'Current state: %s'
+                ) % dict(deal._fields['state'].selection).get(deal.state))
+            
+            # Optional: Check for outstanding downpayments
+            if hasattr(deal, 'downpayment_request_ids'):
+                outstanding_dps = deal.downpayment_request_ids.filtered(
+                    lambda dp: dp.state not in ['paid', 'cancelled']
+                )
+                if outstanding_dps:
+                    raise UserError(_(
+                        'Cannot complete deal with outstanding downpayment requests.\n\n'
+                        'Outstanding requests: %s\n\n'
+                        'Please settle or cancel them first.'
+                    ) % ', '.join(outstanding_dps.mapped('name')))
+            
+            # Optional: Check for open activities
+            if deal.activity_ids:
+                raise UserError(_(
+                    'Cannot complete deal with open activities.\n\n'
+                    'Please close all activities first.'
+                ))
+            
+            deal.write({'state': 'completed'})
+            
+            deal.message_post(
+                body=_('Deal completed by %s') % self.env.user.name,
+                subject=_('Deal Completed'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+            
+            _logger.info(f"Deal {deal.name} marked as completed by {self.env.user.name}")
+        
+        return True
+    
+    def action_reopen(self):
+        """Reopen a completed deal (for corrections)"""
+        for deal in self:
+            if deal.state != 'completed':
+                raise UserError(_(
+                    'Can only reopen completed deals.\n'
+                    'Current state: %s'
+                ) % dict(deal._fields['state'].selection).get(deal.state))
+            
+            # Move back to delivered state
+            deal.write({'state': 'delivered'})
+            
+            deal.message_post(
+                body=_('Deal reopened by %s') % self.env.user.name,
+                subject=_('Deal Reopened'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+            
+            _logger.info(f"Deal {deal.name} reopened by {self.env.user.name}")
+        
+        return True
+    
+    # =========================================================================
+    # STATE CORRECTION (Move Backward)
+    # =========================================================================
+    
+    def action_move_back(self):
+        """
+        Move deal back to previous state (for corrections).
+        
+        State Transitions Backward:
+        - delivered → shipped
+        - shipped → ready
+        - ready → in_production
+        - in_production → confirmed
+        """
+        STATE_BACKWARD_MAP = {
+            'delivered': 'shipped',
+            'shipped': 'ready',
+            'ready': 'in_production',
+            'in_production': 'confirmed',
+        }
+        
+        for deal in self:
+            current_state = deal.state
+            
+            if current_state not in STATE_BACKWARD_MAP:
+                raise UserError(_(
+                    'Cannot move back from state: %s'
+                ) % dict(deal._fields['state'].selection).get(current_state))
+            
+            previous_state = STATE_BACKWARD_MAP[current_state]
+            
+            deal.write({
+                'state': previous_state,
+            })
+            
+            deal.message_post(
+                body=_('Deal moved back from <b>%s</b> to <b>%s</b> by %s<br/>'
+                       '<i>Reason: State correction</i>') % (
+                    dict(deal._fields['state'].selection).get(current_state),
+                    dict(deal._fields['state'].selection).get(previous_state),
+                    self.env.user.name
+                ),
+                subject=_('Deal State Corrected'),
+                message_type='notification',
+                subtype_xmlid='mail.mt_note'
+            )
+            
+            _logger.warning(
+                f"Deal {deal.name} moved back from {current_state} to {previous_state} "
+                f"by {self.env.user.name}"
+            )
+        
+        return True
+    
+    # =========================================================================
+    # CANCELLATION
+    # =========================================================================
     
     def action_cancel(self):
         """Cancel deal and related documents"""
@@ -179,13 +373,6 @@ class DmDealWorkflow(models.Model):
             for po in deal.purchase_order_ids.filtered(lambda o: o.state in ['draft', 'sent']):
                 po.button_cancel()
             
-            # Cancel allocations
-            for alloc in deal.allocation_ids.filtered(lambda a: a.state == 'active'):
-                try:
-                    alloc.action_cancel()
-                except Exception as e:
-                    _logger.warning(f"Could not cancel allocation {alloc.id}: {e}")
-            
             deal.state = 'cancelled'
             
             deal.message_post(
@@ -195,109 +382,18 @@ class DmDealWorkflow(models.Model):
         
         return True
     
-    # ============================================================
-    # ALLOCATION MANAGEMENT ACTIONS
-    # ============================================================
+    def _check_auto_confirmation(self):
+        """
+        DEPRECATED in Phase 4B: Auto-confirmation removed.
+        Confirmation now requires explicit action_confirm() call.
+        Kept for backward compatibility.
+        """
+        _logger.info("_check_auto_confirmation called but skipped (Phase 4B: explicit confirmation required)")
+        return
     
-    def action_unlock_production(self):
-        """Cancel production allocation to unlock deal"""
-        self.ensure_one()
-        
-        if not self.is_locked_for_production:
-            raise UserError(_('Deal is not locked by production'))
-        
-        # Find and cancel production allocation
-        pr_allocs = self.allocation_ids.filtered(
-            lambda a: a.allocation_type == 'production' and a.state == 'active'
-        )
-        
-        if not pr_allocs:
-            self.is_locked_for_production = False
-            return True
-        
-        pr_alloc = pr_allocs[0]
-        pr = pr_alloc.production_run_id if hasattr(pr_alloc, 'production_run_id') else None
-        
-        if pr and pr.state not in ['draft', 'cancelled']:
-            raise UserError(_(
-                'Cannot unlock deal - production run %s is in state "%s".\n\n'
-                'Cancel the production run first.'
-            ) % (pr.name, pr.state))
-        
-        pr_alloc.action_cancel()
-        
-        self.message_post(
-            body=f'Production allocation cancelled. Deal unlocked.',
-            subtype_xmlid='mail.mt_comment'
-        )
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'message': f'Deal unlocked. Allocation to {pr.name if pr else "production"} cancelled.',
-                'type': 'warning',
-                'sticky': False,
-            }
-        }
-    
-    def action_unlock_shipment(self):
-        """Cancel shipment allocation to unlock deal"""
-        self.ensure_one()
-        
-        if not self.is_locked_for_shipment:
-            raise UserError(_('Deal is not locked by shipment'))
-        
-        # Find and cancel shipment allocation
-        ship_allocs = self.allocation_ids.filtered(
-            lambda a: a.allocation_type == 'shipment' and a.state == 'active'
-        )
-        
-        if not ship_allocs:
-            self.is_locked_for_shipment = False
-            return True
-        
-        ship_alloc = ship_allocs[0]
-        ship = ship_alloc.shipment_id if hasattr(ship_alloc, 'shipment_id') else None
-        
-        if ship and ship.state not in ['draft', 'cancelled']:
-            raise UserError(_(
-                'Cannot unlock deal - shipment %s is in state "%s".\n\n'
-                'Cancel the shipment first.'
-            ) % (ship.name, ship.state))
-        
-        ship_alloc.action_cancel()
-        
-        self.message_post(
-            body=f'Shipment allocation cancelled. Deal unlocked.',
-            subtype_xmlid='mail.mt_comment'
-        )
-        
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'message': f'Deal unlocked. Allocation to {ship.name if ship else "shipment"} cancelled.',
-                'type': 'warning',
-                'sticky': False,
-            }
-        }
-    
-    def action_deallocate_all(self):
-        """Cancel all active allocations"""
-        self.ensure_one()
-        active_allocations = self.allocation_ids.filtered(lambda a: a.state == 'active')
-        if active_allocations:
-            active_allocations.action_cancel()
-            self.message_post(body=_("All allocations cancelled"))
-            # Reset state to confirmed
-            if self.state in ['allocated', 'partial', 'ready']:
-                self.state = 'confirmed'
-        return True
-    
-    # ============================================================
+    # =========================================================================
     # VIEW ACTION METHODS
-    # ============================================================
+    # =========================================================================
     
     def action_view_sale_orders(self):
         """Open related sales orders"""
@@ -309,7 +405,7 @@ class DmDealWorkflow(models.Model):
             action['views'] = [(False, 'form')]
             action['res_id'] = self.sale_order_ids.id
         return action
-
+    
     def action_view_purchase_orders(self):
         """Open related purchase orders"""
         self.ensure_one()
@@ -320,15 +416,3 @@ class DmDealWorkflow(models.Model):
             action['views'] = [(False, 'form')]
             action['res_id'] = self.purchase_order_ids.id
         return action
-
-    def action_view_allocations(self):
-        """Open allocation records"""
-        self.ensure_one()
-        return {
-            'name': _('Deal Allocations'),
-            'type': 'ir.actions.act_window',
-            'res_model': 'dm.allocation',
-            'view_mode': 'tree,form',
-            'domain': [('deal_id', '=', self.id)],
-            'context': {'default_deal_id': self.id},
-        }

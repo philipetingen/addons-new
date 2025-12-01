@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Unallocated Deals Tree View -->
+    <record id="view_dm_deal_unallocated_tree" model="ir.ui.view">
+        <field name="name">dm.deal.unallocated.tree</field>
+        <field name="model">dm.deal</field>
+        <field name="arch" type="xml">
+            <tree string="Unallocated Deals" 
+                  decoration-success="state == 'ready'"
+                  decoration-info="state == 'confirmed'"
+                  multi_edit="1">
+                <field name="name"/>
+                <field name="customer_po_number"/>
+                <field name="customer_id"/>
+                <field name="supplier_id"/>
+                <field name="loading_port_id"/>
+                <field name="discharge_port_id"/>
+                <field name="rts_current"/>
+                <field name="loading_current"/>
+                <field name="state" widget="badge"/>
+            </tree>
+        </field>
+    </record>
+    
+    <!-- Action: Unallocated Deals -->
+    <record id="action_dm_deal_unallocated" model="ir.actions.act_window">
+        <field name="name">Unallocated Deals</field>
+        <field name="res_model">dm.deal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('state', 'in', ['confirmed', 'ready']), ('shipment_allocated', '=', False)]</field>
+        <field name="context">{
+            'search_default_group_supplier': 1,
+            'create': False,
+            'edit': False
+        }</field>
+        <field name="view_id" ref="view_dm_deal_unallocated_tree"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_empty_folder">
+                No unallocated deals
+            </p>
+            <p>
+                Deals must be confirmed or ready to be allocated to shipments.
+            </p>
+        </field>
+    </record>
+    
+    <!-- Bulk Action: Create Shipment from Selected Deals -->
+    <record id="action_bulk_allocate_deals" model="ir.actions.server">
+        <field name="name">Create Shipment</field>
+        <field name="model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_model_id" ref="dm_deal.model_dm_deal"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+action = records.action_allocate_to_shipment()
+        </field>
+    </record>
+    
+    <!-- Add button to deal form view -->
+    <record id="view_dm_deal_form_shipment_button" model="ir.ui.view">
+        <field name="name">dm.deal.form.shipment.button</field>
+        <field name="model">dm.deal</field>
+        <field name="inherit_id" ref="dm_deal.view_dm_deal_form"/>
+        <field name="arch" type="xml">
+            
+            <!-- Add smart button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_shipments" 
+                        type="object" 
+                        class="oe_stat_button" 
+                        icon="fa-ship"
+                        invisible="shipment_count == 0">
+                    <field name="shipment_count" widget="statinfo" string="Shipments"/>
+                </button>
+            </xpath>
+            
+            <!-- Add allocation button in header -->
+            <xpath expr="//header" position="inside">
+				<button name="action_allocate_to_shipment" 
+						type="object" 
+						string="Allocate to Shipment"
+						invisible="shipment_allocated == True or state not in ['confirmed', 'in_production', 'ready']"
+						class="oe_highlight"/>
+            </xpath>
+            
+            <!-- Add allocation status field -->
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="shipment_allocated" invisible="1"/>
+            </xpath>
+            
+        </field>
+    </record>
+    
+</odoo>

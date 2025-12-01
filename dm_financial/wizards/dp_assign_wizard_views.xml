@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- ASSIGN DP WIZARD - FORM VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="dp_assign_wizard_view_form" model="ir.ui.view">
+        <field name="name">dm.dp.assign.wizard.form</field>
+        <field name="model">dm.dp.assign.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Assign DP Requests to Payment">
+                <!-- Hidden fields for modifiers -->
+                <field name="payment_id" invisible="1"/>
+                <field name="currency_id" invisible="1"/>
+                <field name="payment_type" invisible="1"/>
+                <field name="available_dp_ids" invisible="1"/>
+                <field name="available_count" invisible="1"/>
+                <field name="selected_count" invisible="1"/>
+                <field name="show_warning" invisible="1"/>
+                
+                <!-- Payment info header -->
+                <group>
+                    <group string="Payment Information">
+                        <field name="payment_name" string="Payment" readonly="1"/>
+                        <field name="partner_id" readonly="1"/>
+                        <field name="currency_id" readonly="1" groups="base.group_multi_currency"/>
+                        <field name="payment_amount" string="Payment Amount" readonly="1"/>
+                    </group>
+                    
+                    <group string="Current Allocation">
+                        <field name="current_dp_count" string="DPs Allocated"/>
+                        <field name="current_dp_total" string="Current DP Total"/>
+                    </group>
+                </group>
+
+                <separator string="Available DP Requests"/>
+
+                <!-- Available count info -->
+                <div class="alert alert-info" role="alert" invisible="available_count &gt; 0">
+                    <strong>No available DP requests.</strong>
+                    <p class="mb-0">
+                        There are no pending, unallocated DP requests matching this payment's 
+                        partner, currency, and type.
+                    </p>
+                </div>
+
+                <!-- DP Selection -->
+                <group invisible="available_count == 0">
+                    <field name="selected_dp_ids" 
+                           nolabel="1"
+                           widget="many2many_checkboxes"
+                           options="{'no_create': True}">
+                    </field>
+                </group>
+
+                <separator/>
+
+                <!-- Totals summary -->
+                <group invisible="selected_count == 0">
+                    <group string="Selection Summary">
+                        <field name="selected_count" string="Selected DPs"/>
+                        <field name="selected_total" string="Selected Amount"/>
+                    </group>
+                    
+                    <group string="After Assignment">
+                        <field name="new_dp_total" string="New DP Total"/>
+                        <field name="new_difference" string="Remaining Difference"
+                               decoration-danger="new_difference &lt; 0"
+                               decoration-warning="new_difference &gt; 0"
+                               decoration-success="new_difference == 0"/>
+                    </group>
+                </group>
+
+                <!-- Warning if amounts don't match -->
+                <group invisible="not show_warning or selected_count == 0">
+                    <div class="alert alert-warning" role="alert" colspan="2">
+                        <strong>Amount Mismatch</strong>
+                        <p class="mb-0">
+                            After assignment, the DP total will differ from the payment amount.
+                        </p>
+                        <small class="text-muted">This is allowed but may indicate a data entry issue.</small>
+                    </div>
+                </group>
+
+                <footer>
+                    <button name="action_assign" 
+                            string="Assign Selected" 
+                            type="object" 
+                            class="btn-primary"
+                            invisible="selected_count == 0"
+                            icon="fa-link"/>
+                    <button name="action_cancel" 
+                            string="Close" 
+                            type="object" 
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- ASSIGN DP WIZARD - ACTION -->
+    <!-- ============================================================ -->
+
+    <record id="dp_assign_wizard_action" model="ir.actions.act_window">
+        <field name="name">Assign DP Requests</field>
+        <field name="res_model">dm.dp.assign.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

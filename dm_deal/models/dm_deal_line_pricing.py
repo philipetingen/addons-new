@@ -7,9 +7,112 @@ _logger = logging.getLogger(__name__)
 
 
 class DmDealLinePricing(models.Model):
-    """Deal Line - Pricing Extension"""
+    """Deal Line - Pricing & Product Selection Extension
+    
+    Sprint 2: Merged product onchange logic from dm_deal_line_product.py
+    """
     _inherit = 'dm.deal.line'
-    _description = 'Deal Line - Pricing Extension'
+    _description = 'Deal Line - Pricing & Product Extension'
+    
+    # =========================================================================
+    # PRODUCT ONCHANGE HANDLERS (from dm_deal_line_product.py)
+    # =========================================================================
+    
+    @api.onchange('customer_product_code')
+    def _onchange_customer_product_code(self):
+        """Look up product by customer code and auto-populate fields"""
+        if not self.customer_product_code or not self.deal_id.customer_id:
+            return
+        
+        try:
+            # Search in dm.customer.pricelist
+            pricelist_item = self.env['dm.customer.pricelist'].search([
+                ('partner_id', '=', self.deal_id.customer_id.id),
+                ('customer_product_code', '=', self.customer_product_code),
+                ('active', '=', True),
+                '|',
+                ('date_start', '<=', fields.Date.context_today(self)),
+                ('date_start', '=', False),
+                '|',
+                ('date_end', '>=', fields.Date.context_today(self)),
+                ('date_end', '=', False),
+            ], limit=1)
+            
+            if pricelist_item:
+                # Auto-populate product and packaging
+                self.product_id = pricelist_item.product_id
+                self.product_packaging_id = pricelist_item.product_packaging_id
+                self.price_packaging_sale = pricelist_item.package_price
+                self.customer_product_description = pricelist_item.customer_product_description
+                
+                _logger.info(f"Auto-populated product from customer code: {self.customer_product_code}")
+            else:
+                return {
+                    'warning': {
+                        'title': _('Product Code Not Found'),
+                        'message': _(
+                            f"No product found with customer code '{self.customer_product_code}' "
+                            f"for customer {self.deal_id.customer_id.name}"
+                        )
+                    }
+                }
+        except Exception as e:
+            _logger.error(f"Error looking up customer product code: {str(e)}", exc_info=True)
+    
+    @api.onchange('product_id')
+    def _onchange_product_id(self):
+        """When product changes, select default packaging and fetch prices"""
+        if not self.product_id:
+            return
+        
+        # Set default packaging
+        if self.product_id.packaging_ids:
+            try:
+                # Try to find 'case' packaging
+                case_packaging = self.product_id.packaging_ids.filtered(
+                    lambda p: hasattr(p, 'standard_type_id') and p.standard_type_id and p.standard_type_id.code == 'case'
+                )
+                if case_packaging:
+                    self.product_packaging_id = case_packaging[0]
+                else:
+                    # Fallback to first packaging
+                    self.product_packaging_id = self.product_id.packaging_ids[0]
+            except Exception as e:
+                _logger.warning(f"Error selecting default packaging: {str(e)}")
+                self.product_packaging_id = self.product_id.packaging_ids[0]
+    
+    @api.onchange('product_packaging_id')
+    def _onchange_product_packaging_id(self):
+        """When packaging changes - simplified flow"""
+        if not self.product_packaging_id or not self.product_id:
+            return
+        
+        # Fetch customer price
+        if self.deal_id.customer_id:
+            self._fetch_customer_price()
+        
+        # Fetch supplier price (this also sets line.supplier_id!)
+        self._fetch_supplier_price()
+        
+        # Validate supplier consistency for Line 2+
+        if self.deal_id.supplier_id and self.supplier_id:
+            if self.deal_id.supplier_id != self.supplier_id:
+                raise UserError(
+                    f"Cannot add this product!\n\n"
+                    f"Deal supplier: {self.deal_id.supplier_id.name}\n"
+                    f"Product supplier: {self.supplier_id.name}\n\n"
+                    f"Cannot mix suppliers in one deal."
+                )
+        
+        # Trigger template application for Line 1
+        if self.deal_id and not self.deal_id.template_id and not self.deal_id.template_selection_pending:
+            result = self.deal_id._apply_template_from_lines()
+            if result:
+                return result
+    
+    # =========================================================================
+    # PRICE COMPUTATION METHODS
+    # =========================================================================
     
     @api.depends('price_packaging_sale', 'price_packaging_purchase', 
                  'product_packaging_id', 'weight')
@@ -92,8 +195,6 @@ class DmDealLinePricing(models.Model):
             line.margin_amount = line.amount_sale - line.amount_purchase
             
             if line.amount_sale > 0:
-                # CRITICAL FIX: Store as fraction (0.155) not percentage (15.5)
-                # Because widget="percentage" expects fraction
                 line.margin_percentage = (line.margin_amount / line.amount_sale)
             else:
                 line.margin_percentage = 0
@@ -106,6 +207,10 @@ class DmDealLinePricing(models.Model):
                 line.production_progress = (line.quantity_produced / line.quantity_packaging) * 100
             else:
                 line.production_progress = 0.0
+    
+    # =========================================================================
+    # PRICE FETCHING METHODS
+    # =========================================================================
     
     def _fetch_customer_price(self):
         """
@@ -167,14 +272,7 @@ class DmDealLinePricing(models.Model):
         Fetch supplier price from vendor pricing (product.supplierinfo with dm_ fields).
         Also sets line.supplier_id from the price record.
         """
-        _logger.warning("💰 _fetch_supplier_price CALLED")
-        _logger.warning(f"   Product: {self.product_id.name if self.product_id else 'None'}")
-        _logger.warning(f"   Packaging: {self.product_packaging_id.name if self.product_packaging_id else 'None'}")
-        _logger.warning(f"   Line supplier (before): {self.supplier_id.name if self.supplier_id else 'NOT SET'}")
-        _logger.warning(f"   Deal supplier: {self.deal_id.supplier_id.name if self.deal_id.supplier_id else 'NOT SET'}")
-        
         if not self.product_id or not self.product_packaging_id:
-            _logger.warning("   ❌ Missing product or packaging")
             return
         
         try:
@@ -194,22 +292,15 @@ class DmDealLinePricing(models.Model):
             ], order='sequence, min_qty, price')
             
             if not supplier_infos:
-                _logger.warning("   ❌ No supplier info found")
                 raise UserError(
                     f"No vendor pricing found for product '{self.product_id.name}'.\n\n"
                     f"Please configure vendor pricing in the product's Purchase tab."
                 )
             
             unique_suppliers = supplier_infos.mapped('partner_id')
-            supplier_count = len(unique_suppliers)
-            
-            _logger.warning(f"   Found {supplier_count} suppliers with pricing:")
-            for sup in unique_suppliers:
-                _logger.warning(f"      - {sup.name}")
             
             # PRIORITY 1: Filter by deal's supplier if set (Line 2+)
             if self.deal_id.supplier_id:
-                _logger.warning(f"   Filtering by deal supplier: {self.deal_id.supplier_id.name}")
                 supplier_infos = supplier_infos.filtered(
                     lambda si: si.partner_id == self.deal_id.supplier_id
                 )
@@ -221,12 +312,10 @@ class DmDealLinePricing(models.Model):
             
             # PRIORITY 2: Filter by line's supplier if already set
             elif self.supplier_id:
-                _logger.warning(f"   Filtering by line supplier: {self.supplier_id.name}")
                 supplier_infos = supplier_infos.filtered(
                     lambda si: si.partner_id == self.supplier_id
                 )
                 if not supplier_infos:
-                    _logger.warning(f"   ⚠️ Line supplier has no pricing - resetting to all")
                     supplier_infos = self.env['product.supplierinfo'].search([
                         '|',
                             ('product_id', '=', self.product_id.id),
@@ -238,12 +327,9 @@ class DmDealLinePricing(models.Model):
             # Find exact package match
             best_info = None
             
-            _logger.warning(f"   Looking for package-based pricing for: {self.product_packaging_id.name}")
-            
             for info in supplier_infos:
                 if info.dm_is_package_price and info.dm_packaging_id == self.product_packaging_id:
                     best_info = info
-                    _logger.warning(f"   ✅ Found exact package match: {info.partner_id.name}")
                     break
             
             if not best_info:
@@ -251,11 +337,6 @@ class DmDealLinePricing(models.Model):
                 package_infos = supplier_infos.filtered(lambda si: si.dm_is_package_price)
                 
                 if package_infos:
-                    _logger.warning(f"   ⚠️ No exact package match for {self.product_packaging_id.name}")
-                    _logger.warning(f"   Available package-based prices:")
-                    for pi in package_infos:
-                        _logger.warning(f"      - {pi.dm_packaging_id.name}: ${pi.dm_package_price:.6f} ({pi.partner_id.name})")
-                    
                     available = ', '.join(f"{pi.dm_packaging_id.name} ({pi.partner_id.name})" 
                                         for pi in package_infos)
                     raise UserError(
@@ -267,7 +348,6 @@ class DmDealLinePricing(models.Model):
                 else:
                     # No package-based pricing - use standard price
                     best_info = supplier_infos[0]
-                    _logger.warning(f"   ⚠️ No package-based pricing found - using standard supplierinfo")
             
             if not best_info:
                 raise UserError(f"No vendor pricing found")
@@ -275,26 +355,26 @@ class DmDealLinePricing(models.Model):
             # SET SUPPLIER ON LINE
             if not self.supplier_id:
                 self.supplier_id = best_info.partner_id
-                _logger.warning(f"   ✅ SET line.supplier_id = {self.supplier_id.name}")
             
             # GET PRICE
             if best_info.dm_is_package_price and best_info.dm_package_price:
                 # Use package-based price
                 self.price_packaging_purchase = best_info.dm_package_price
-                _logger.warning(f"   ✅ Package price: ${self.price_packaging_purchase:.6f} per {best_info.dm_packaging_id.name}")
             elif best_info.price and self.product_packaging_id.qty:
                 # Calculate from unit price
                 self.price_packaging_purchase = best_info.price * self.product_packaging_id.qty
-                _logger.warning(f"   ✅ Calculated package price from unit: ${self.price_packaging_purchase:.6f}")
             else:
                 self.price_packaging_purchase = 0
-                _logger.warning(f"   ⚠️ No price available - set to 0")
         
         except UserError:
             raise
         except Exception as e:
             _logger.error(f"Error fetching supplier price: {str(e)}", exc_info=True)
             raise UserError(f"Error fetching supplier price: {str(e)}")
+    
+    # =========================================================================
+    # VALIDATION
+    # =========================================================================
     
     @api.constrains('price_packaging_sale', 'price_packaging_purchase')
     def _check_prices(self):
@@ -304,3 +384,78 @@ class DmDealLinePricing(models.Model):
                 raise ValidationError(_("Sale price cannot be negative"))
             if line.price_packaging_purchase < 0:
                 raise ValidationError(_("Purchase price cannot be negative"))
+                
+    @api.model
+    def fetch_customer_price_for_wizard(self, customer_id, product_id, packaging_id):
+        """
+        Static helper for wizards to fetch customer price.
+        Returns dict with price data or None.
+        """
+        if not customer_id or not product_id or not packaging_id:
+            return None
+        
+        try:
+            pricelist_item = self.env['dm.customer.pricelist'].search([
+                ('partner_id', '=', customer_id),
+                ('product_id', '=', product_id),
+                ('product_packaging_id', '=', packaging_id),
+                ('active', '=', True),
+                '|',
+                ('date_start', '<=', fields.Date.context_today(self)),
+                ('date_start', '=', False),
+                '|',
+                ('date_end', '>=', fields.Date.context_today(self)),
+                ('date_end', '=', False),
+            ], limit=1)
+            
+            if pricelist_item:
+                return {
+                    'package_price': pricelist_item.package_price,
+                    'moq_packages': pricelist_item.moq_packages,
+                    'customer_product_code': pricelist_item.customer_product_code,
+                    'customer_product_description': pricelist_item.customer_product_description,
+                    'currency_id': pricelist_item.currency_id.id if pricelist_item.currency_id else False,
+                }
+            
+            return None
+        
+        except Exception as e:
+            _logger.error(f"Error fetching customer price: {str(e)}", exc_info=True)
+            return None
+    
+    @api.model
+    def lookup_product_by_customer_code(self, customer_id, customer_code):
+        """
+        Static helper to lookup product by customer code.
+        Returns dict with product data or None.
+        """
+        if not customer_id or not customer_code:
+            return None
+        
+        try:
+            pricelist_item = self.env['dm.customer.pricelist'].search([
+                ('partner_id', '=', customer_id),
+                ('customer_product_code', '=', customer_code),
+                ('active', '=', True),
+                '|',
+                ('date_start', '<=', fields.Date.context_today(self)),
+                ('date_start', '=', False),
+                '|',
+                ('date_end', '>=', fields.Date.context_today(self)),
+                ('date_end', '=', False),
+            ], limit=1)
+            
+            if pricelist_item:
+                return {
+                    'product_id': pricelist_item.product_id.id,
+                    'product_packaging_id': pricelist_item.product_packaging_id.id,
+                    'package_price': pricelist_item.package_price,
+                    'moq_packages': pricelist_item.moq_packages,
+                    'customer_product_description': pricelist_item.customer_product_description,
+                }
+            
+            return None
+        
+        except Exception as e:
+            _logger.error(f"Error looking up customer product code: {str(e)}", exc_info=True)
+            return None                

@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    
+    <!-- Loading Lot Wizard Form -->
+    <record id="view_loading_lot_wizard_form" model="ir.ui.view">
+        <field name="name">loading.lot.wizard.form</field>
+        <field name="model">loading.lot.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Manage Lots">
+                <header>
+                    <button name="action_save" string="Save" type="object" class="oe_highlight"/>
+                    <button name="action_discard" string="Discard" type="object" class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <!-- Hidden fields -->
+                    <field name="loading_wizard_line_id" invisible="1"/>
+                    <field name="deal_line_id" invisible="1"/>
+                    <field name="remaining" invisible="1"/>
+                    
+                    <group>
+                        <group string="Product">
+                            <field name="product_id" readonly="1"/>
+                            <field name="product_packaging_id" readonly="1"/>
+                        </group>
+                        <group string="Quantity Allocation">
+                            <field name="quantity_loaded"/>
+                            <field name="total_allocated" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Add Lot Button -->
+                    <group>
+                        <button name="action_add_lot_auto" 
+                                string="+ Add Lot" 
+                                type="object" 
+                                class="btn-primary"
+                                invisible="remaining &lt;= 0.001"
+                                help="Create new lot with remaining quantity"/>
+                    </group>
+                    
+                    <!-- Lot editing - Full Width -->
+                    <notebook>
+                        <page string="Lots" name="lots">
+                            <field name="lot_ids" nolabel="1" context="{'default_deal_line_id': deal_line_id}">
+                                <tree editable="bottom" delete="1" create="1">
+                                    <field name="deal_line_id" column_invisible="1"/>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="lot_number" required="1" placeholder="Enter lot/batch number"/>
+                                    <field name="quantity" required="1" sum="Total"/>
+                                    <field name="production_date" required="1"/>
+                                    <field name="expiry_date" required="1"/>
+                                    <field name="notes" optional="show"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                    
+                    <div class="alert alert-info" role="alert">
+                        <strong>ℹ️ How to Use:</strong>
+                        <ul>
+                            <li><strong>Quantity Loaded:</strong> Edit to match actual loaded quantity</li>
+                            <li><strong>Add Lot:</strong> Click "+ Add Lot" to create with remaining quantity auto-filled</li>
+                            <li><strong>Manual add:</strong> Or click "Add a line" to create empty lot</li>
+                            <li><strong>Edit lots:</strong> Click into any field to edit</li>
+                            <li><strong>Delete lot:</strong> Click trash icon on the row</li>
+                            <li><strong>Save:</strong> Total lot quantity must equal quantity loaded</li>
+                        </ul>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    
+</odoo>
