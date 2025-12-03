@@ -97,9 +97,14 @@
                             <field name="discharge_port_id"/>
                         </group>
                         
+						<group name="parties" string="Parties">
+							<field name="customer_ids" widget="many2many_tags" readonly="1"/>
+						</group>						
+						
                         <group name="summary" string="Summary">
                             <field name="total_teu"/>
                             <field name="subdeal_count" string="Sub-Deals"/>
+							<field name="product_ids" widget="many2many_tags" readonly="1"/>
                         </group>
                     </group>
                     
@@ -216,6 +221,8 @@
             <tree string="Shipments">
                 <field name="name"/>
                 <field name="supplier_id"/>
+				<field name="customer_ids" widget="many2many_tags" optional="show"/>
+				<field name="product_ids" widget="many2many_tags" optional="show"/>				
                 <field name="loading_port_id"/>
                 <field name="discharge_port_id"/>
                 <field name="loading_current" optional="show"/>

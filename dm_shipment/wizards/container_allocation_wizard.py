@@ -239,6 +239,10 @@ class ContainerAllocationWizard(models.TransientModel):
         - Uses most restrictive type from subdeal lines
         - Reefer > Dry, Lower temp > Higher temp, HC > GP
         
+        Reefer Settings:
+        - Populates temp/humidity from product requirements
+        - Uses most restrictive values (lowest min, highest max)
+        
         Sprint 2B will add: Multi-container splitting, manual optimization
         """
         self.ensure_one()
@@ -286,12 +290,56 @@ class ContainerAllocationWizard(models.TransientModel):
                     f"ℹ️ Sub-deal {subdeal.name} (Deal: {subdeal.deal_id.name}): Low utilization ({utilization_pct:.0f}% of 1 container)"
                 )
             
-            # Create container
-            container = self.env['dm.container'].create({
+            # Build container vals
+            container_vals = {
                 'shipment_id': self.shipment_id.id,
                 'container_type_id': selected_type.id,
                 'sequence': (idx + 1) * 10,
-            })
+            }
+            
+            # Add reefer settings if reefer container
+            if selected_type.is_reefer:
+                temps_min = []
+                temps_max = []
+                humid_min = []
+                humid_max = []
+                
+                for line in subdeal.line_ids:
+                    product_tmpl = line.product_id.product_tmpl_id
+                    
+                    # Temperature requirements
+                    if hasattr(product_tmpl, 'set_temperature_min') and product_tmpl.set_temperature_min:
+                        temps_min.append(product_tmpl.set_temperature_min)
+                    if hasattr(product_tmpl, 'set_temperature_max') and product_tmpl.set_temperature_max:
+                        temps_max.append(product_tmpl.set_temperature_max)
+                    
+                    # Humidity requirements
+                    if hasattr(product_tmpl, 'set_humidity_min') and product_tmpl.set_humidity_min:
+                        humid_min.append(product_tmpl.set_humidity_min)
+                    if hasattr(product_tmpl, 'set_humidity_max') and product_tmpl.set_humidity_max:
+                        humid_max.append(product_tmpl.set_humidity_max)
+                
+                # Most restrictive: lowest min, highest max
+                if temps_min or temps_max:
+                    container_vals['temp_range_min'] = min(temps_min) if temps_min else 0.0
+                    container_vals['temp_range_max'] = max(temps_max) if temps_max else 0.0
+                    # Required temp: use the minimum (most restrictive for cold chain)
+                    container_vals['temp_required'] = min(temps_min) if temps_min else 0.0
+                
+                if humid_min or humid_max:
+                    container_vals['humidity_range_min'] = min(humid_min) if humid_min else 0.0
+                    container_vals['humidity_range_max'] = max(humid_max) if humid_max else 0.0
+                    container_vals['humidity_required'] = min(humid_min) if humid_min else 0.0
+                
+                _logger.info(
+                    f"Reefer settings for subdeal {subdeal.name}: "
+                    f"temp={container_vals.get('temp_required')}°C "
+                    f"({container_vals.get('temp_range_min')}-{container_vals.get('temp_range_max')}°C), "
+                    f"humidity={container_vals.get('humidity_required')}%"
+                )
+            
+            # Create container
+            container = self.env['dm.container'].create(container_vals)
             
             # Create container lines from subdeal lines
             for line in subdeal.line_ids:

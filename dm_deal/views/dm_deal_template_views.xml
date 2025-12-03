@@ -76,14 +76,14 @@
                                 <group string="Default Ports">
                                     <field name="discharge_port_id" 
                                            string="Discharge Port (POD)"/>
-                                    <div class="alert alert-info" role="alert" invisible="sale_incoterm_id">
-                                        <p class="mb-0">
-                                            <strong>ℹ️ Sales Incoterm Location:</strong><br/>
-                                            If not specified in template, system will use:<br/>
-                                            <strong>Discharge Port name</strong> (where goods arrive for customer)
-                                        </p>
-                                    </div>
                                 </group>
+								<div class="alert alert-info" role="alert" invisible="sale_incoterm_id">
+									<p class="mb-0">
+										<strong>ℹ️ Sales Incoterm Location:</strong><br/>
+										If not specified in template, system will use:<br/>
+										<strong>Discharge Port name</strong> (where goods arrive for customer)
+									</p>
+								</div>
                             </group>
                         </page>
                         
@@ -99,14 +99,15 @@
                                 <group string="Default Ports">
                                     <field name="loading_port_id" 
                                            string="Loading Port (POL)"/>
-                                    <div class="alert alert-info" role="alert" invisible="purchase_incoterm_id">
-                                        <p class="mb-0">
-                                            <strong>ℹ️ Purchase Incoterm Location:</strong><br/>
-                                            If not specified in template, system will use:<br/>
-                                            <strong>Loading Port name</strong> (where we pick up from supplier)
-                                        </p>
-                                    </div>
+                                   
                                 </group>
+								<div class="alert alert-info" role="alert" invisible="purchase_incoterm_id">
+									<p class="mb-0">
+										<strong>ℹ️ Purchase Incoterm Location:</strong><br/>
+										If not specified in template, system will use:<br/>
+										<strong>Loading Port name</strong> (where we pick up from supplier)
+									</p>
+								</div>								
                             </group>
                         </page>
                         
@@ -115,11 +116,9 @@
                                 <group string="Invoice Split">
                                     <field name="invoice_split"/>
                                     <field name="product_invoice_percentage" 
-                                           invisible="not invoice_split"
-                                           widget="percentage"/>
+                                           invisible="not invoice_split"/>
                                     <field name="service_invoice_percentage" 
-                                           invisible="not invoice_split"
-                                           widget="percentage"/>
+                                           invisible="not invoice_split"/>
                                 </group>
                                 <group string="Lead Times (for Wizard)">
                                     <field name="total_lead_time" 

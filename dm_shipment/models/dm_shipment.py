@@ -210,6 +210,28 @@ class DmShipment(models.Model):
         help='List of products in shipment'
     )
     
+    customer_ids = fields.Many2many(
+        'res.partner',
+        'dm_shipment_customer_rel',
+        'shipment_id',
+        'partner_id',
+        string='Customers',
+        compute='_compute_customer_product_ids',
+        store=True,
+        help='Customers from allocated deals'
+    )
+
+    product_ids = fields.Many2many(
+        'product.product',
+        'dm_shipment_product_rel',
+        'shipment_id',
+        'product_id',
+        string='Products',
+        compute='_compute_customer_product_ids',
+        store=True,
+        help='Products from allocated deals'
+    )    
+    
     # =========================================================================
     # COMPUTED METHODS
     # =========================================================================
@@ -277,6 +299,13 @@ class DmShipment(models.Model):
             else:
                 shipment.customer_po_numbers = ''
                 shipment.product_names = ''
+    
+    @api.depends('deal_ids', 'deal_ids.customer_id', 'deal_ids.product_ids')
+    def _compute_customer_product_ids(self):
+        """Aggregate customers and products from allocated deals"""
+        for shipment in self:
+            shipment.customer_ids = shipment.deal_ids.mapped('customer_id')
+            shipment.product_ids = shipment.deal_ids.mapped('product_ids')    
     
     # =========================================================================
     # CRUD METHODS
